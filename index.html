@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iain Matthew Barruga - Civil Engineering Student · MMSU</title>
+<link rel="icon" type="image/svg+xml" href="favicon-source.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="shortcut icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Cormorant+Garamond:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     INTRO ANIMATION: Blank grid → Floor plan → Pan to hero
+     ══════════════════════════════════════════════ -->
+<div id="intro-overlay">
+  <button id="skip-btn" onclick="skipIntro()">Skip ↓</button>
+  <div id="stage-label"><span id="stage-text">Initializing drawing board…</span></div>
+  <div id="intro-progress"></div>
+
+  <div id="intro-fp-wrap">
+    <div class="fp-top-label">DWG-A-FP01 · GROUND FLOOR PLAN · 1:100 · BARRUGA RESIDENCE<span class="bp-cursor"></span></div>
+    <!-- THE SHARED FLOOR PLAN SVG -->
+    <svg id="fp-svg" viewBox="0 0 800 580" xmlns="http://www.w3.org/2000/svg" fill="none" style="display:block;width:100%;height:auto;max-height:72vh;">
+      <defs>
+        <pattern id="fp-grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(74,184,200,0.1)" stroke-width="0.5"/>
+        </pattern>
+        <pattern id="hatch-rc" x="0" y="0" width="6" height="6" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="6" x2="6" y2="0" stroke="rgba(74,184,200,0.25)" stroke-width="0.7"/>
+        </pattern>
+        <pattern id="hatch-tile" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+          <rect width="8" height="8" fill="none" stroke="rgba(74,184,200,0.12)" stroke-width="0.5"/>
+        </pattern>
+        <marker id="arr-dim" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" orient="auto">
+          <line x1="0" y1="0" x2="5" y2="2.5" stroke="#e8b44a" stroke-width="0.8"/>
+          <line x1="0" y1="5" x2="5" y2="2.5" stroke="#e8b44a" stroke-width="0.8"/>
+        </marker>
+      </defs>
+
+      <!-- BG + grid -->
+      <rect width="800" height="580" fill="#060c14"/>
+      <rect width="800" height="580" fill="url(#fp-grid)"/>
+
+      <!-- ── DRAWING FRAME ── -->
+      <g class="fp-frame" opacity="0">
+        <rect x="16" y="16" width="768" height="548" stroke="#4ab8c8" stroke-width="1.2" opacity="0.4"/>
+        <rect x="22" y="22" width="756" height="536" stroke="rgba(74,184,200,0.15)" stroke-width="0.4"/>
+        <!-- Title block bottom strip -->
+        <rect x="16" y="536" width="768" height="28" fill="rgba(74,184,200,0.04)" stroke="rgba(74,184,200,0.2)" stroke-width="0.5"/>
+        <text x="32" y="554" fill="rgba(74,184,200,0.45)" font-family="'Space Mono',monospace" font-size="7.5" letter-spacing="1.5">BARRUGA RESIDENCE  ·  TARLAC CITY  ·  DWG-A-FP01  ·  SCALE 1:100  ·  IAIN MATTHEW BARRUGA, CE STUDENT</text>
+        <text x="768" y="554" fill="rgba(232,180,74,0.5)" font-family="'Space Mono',monospace" font-size="7.5" text-anchor="end">REV 03</text>
+        <!-- Corner marks -->
+        <line x1="16" y1="36" x2="16" y2="16"/><line x1="16" y1="16" x2="36" y2="16"/>
+        <line x1="784" y1="36" x2="784" y2="16"/><line x1="784" y1="16" x2="764" y2="16"/>
+        <line x1="16" y1="520" x2="16" y2="536"/><line x1="16" y1="536" x2="36" y2="536"/>
+        <line x1="784" y1="520" x2="784" y2="536"/><line x1="784" y1="536" x2="764" y2="536"/>
+      </g>
+
+      <!-- ── OUTER BUILDING PERIMETER WALL (thick, 200mm) ── -->
+      <g class="fp-outer-wall" opacity="0">
+        <!-- Main building outline -->
+        <rect x="60" y="50" width="520" height="440" stroke="#8ac8e0" stroke-width="5" fill="none" stroke-linejoin="miter"/>
+        <!-- Setback notch (L-shape cut at top right, balcony recess) -->
+        <rect x="460" y="50" width="120" height="80" stroke="#8ac8e0" stroke-width="5" fill="#060c14"/>
+        <!-- Veranda protrusion at entrance -->
+        <rect x="220" y="490" width="160" height="40" stroke="#8ac8e0" stroke-width="3.5" fill="none" stroke-dasharray="6 3"/>
+        <!-- Wall fill hatching in outer wall thickness -->
+        <rect x="60" y="50" width="520" height="10" fill="url(#hatch-rc)"/>
+        <rect x="60" y="480" width="520" height="10" fill="url(#hatch-rc)"/>
+        <rect x="60" y="50" width="10" height="440" fill="url(#hatch-rc)"/>
+        <rect x="570" y="50" width="10" height="440" fill="url(#hatch-rc)"/>
+      </g>
+
+      <!-- ── INTERIOR WALLS (150mm lines) ── -->
+      <g class="fp-walls-main" opacity="0" stroke="#7ab8d0" stroke-width="3" fill="none">
+        <!-- Vertical spine wall -->
+        <line x1="240" y1="50" x2="240" y2="490"/>
+        <!-- Horizontal zone divider at mid -->
+        <line x1="60" y1="280" x2="580" y2="280"/>
+        <!-- Right zone vertical -->
+        <line x1="400" y1="280" x2="400" y2="490"/>
+        <!-- Upper-right sub-divide -->
+        <line x1="400" y1="50" x2="400" y2="280"/>
+        <!-- Balcony partition -->
+        <line x1="460" y1="50" x2="460" y2="130"/>
+        <line x1="460" y1="130" x2="580" y2="130"/>
+        <!-- Utility core walls -->
+        <line x1="240" y1="160" x2="400" y2="160"/>
+        <line x1="320" y1="160" x2="320" y2="280"/>
+        <!-- Stair core -->
+        <rect x="400" y="160" width="80" height="120" stroke="#6aa8c0" stroke-width="2.5"/>
+        <!-- Lower right rooms -->
+        <line x1="490" y1="280" x2="490" y2="490"/>
+      </g>
+
+      <!-- ── SECONDARY / PARTITION WALLS ── -->
+      <g class="fp-walls-secondary" opacity="0" stroke="#5a9ab0" stroke-width="1.8" fill="none" stroke-dasharray="none">
+        <!-- Bathroom partitions left -->
+        <line x1="60" y1="180" x2="160" y2="180"/>
+        <line x1="160" y1="130" x2="160" y2="280"/>
+        <!-- Walk-in closet -->
+        <line x1="140" y1="280" x2="140" y2="380"/>
+        <line x1="60" y1="380" x2="240" y2="380"/>
+        <!-- Kitchen counter line (dashed) -->
+        <line x1="250" y1="160" x2="390" y2="160" stroke="#4ab8c8" stroke-width="1.2" stroke-dasharray="4 2"/>
+        <line x1="250" y1="210" x2="390" y2="210" stroke="#4ab8c8" stroke-width="1.2" stroke-dasharray="4 2"/>
+        <!-- Laundry / utility -->
+        <line x1="490" y1="420" x2="580" y2="420"/>
+      </g>
+
+      <!-- ── COLUMNS (300×300 RC) ── -->
+      <g class="fp-columns" opacity="0">
+        <!-- All columns as solid squares with hatch -->
+        <rect x="52" y="42" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="232" y="42" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="392" y="42" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="452" y="42" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="572" y="42" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="52" y="272" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="232" y="272" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="392" y="272" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="482" y="272" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="572" y="272" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="52" y="482" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="232" y="482" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="392" y="482" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="482" y="482" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <rect x="572" y="482" width="16" height="16" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="1.2"/>
+        <!-- Upper zone mid columns -->
+        <rect x="392" y="122" width="16" height="16" fill="url(#hatch-rc)" stroke="#6aa8c0" stroke-width="1"/>
+        <rect x="452" y="122" width="16" height="16" fill="url(#hatch-rc)" stroke="#6aa8c0" stroke-width="1"/>
+      </g>
+
+      <!-- ── DOORS ── -->
+      <g class="fp-doors" opacity="0" stroke="#4ab8c8" stroke-width="1" fill="none">
+        <!-- Main entrance door (double) -->
+        <line x1="270" y1="490" x2="270" y2="480"/>
+        <line x1="350" y1="490" x2="350" y2="480"/>
+        <path d="M 270 490 Q 270 460 300 460" stroke="rgba(74,184,200,0.5)" stroke-dasharray="3 2"/>
+        <path d="M 350 490 Q 350 460 320 460" stroke="rgba(74,184,200,0.5)" stroke-dasharray="3 2"/>
+        <!-- Living room to foyer -->
+        <line x1="240" y1="400" x2="240" y2="380" stroke="#0c1520" stroke-width="5"/>
+        <line x1="240" y1="400" x2="240" y2="380"/>
+        <path d="M 240 400 Q 260 400 260 380" stroke="rgba(74,184,200,0.5)" stroke-dasharray="3 2"/>
+        <!-- Bedroom 1 door -->
+        <line x1="60" y1="310" x2="60" y2="330" stroke="#0c1520" stroke-width="5"/>
+        <line x1="60" y1="310" x2="60" y2="330"/>
+        <path d="M 60 310 Q 90 310 90 330" stroke="rgba(74,184,200,0.5)" stroke-dasharray="3 2"/>
+        <!-- Bedroom 1 closet door -->
+        <line x1="140" y1="325" x2="140" y2="345" stroke="#0c1520" stroke-width="4"/>
+        <path d="M 140 325 Q 165 325 165 345" stroke="rgba(74,184,200,0.4)" stroke-dasharray="2 2" stroke-width="0.8"/>
+        <!-- Bathroom door -->
+        <line x1="130" y1="180" x2="155" y2="180" stroke="#0c1520" stroke-width="4"/>
+        <path d="M 130 180 Q 130 155 155 155" stroke="rgba(74,184,200,0.5)" stroke-dasharray="3 2"/>
+        <!-- Kitchen door -->
+        <line x1="240" y1="200" x2="240" y2="220" stroke="#0c1520" stroke-width="4"/>
+        <path d="M 240 200 Q 262 200 262 220" stroke="rgba(74,184,200,0.5)" stroke-dasharray="3 2"/>
+        <!-- Stair to 2F door -->
+        <line x1="400" y1="200" x2="420" y2="200" stroke="#0c1520" stroke-width="4"/>
+        <path d="M 400 200 Q 400 180 420 180" stroke="rgba(74,184,200,0.4)" stroke-dasharray="2 2" stroke-width="0.8"/>
+        <!-- Right bedroom door -->
+        <line x1="490" y1="360" x2="490" y2="340" stroke="#0c1520" stroke-width="4"/>
+        <path d="M 490 360 Q 515 360 515 340" stroke="rgba(74,184,200,0.5)" stroke-dasharray="3 2"/>
+        <!-- Utility door -->
+        <line x1="530" y1="490" x2="555" y2="490" stroke="#0c1520" stroke-width="4"/>
+        <path d="M 530 490 Q 530 468 555 468" stroke="rgba(74,184,200,0.4)" stroke-dasharray="2 2" stroke-width="0.8"/>
+      </g>
+
+      <!-- ── WINDOWS ── -->
+      <g class="fp-windows" opacity="0" stroke="#4ab8c8" stroke-width="1.5" fill="none">
+        <!-- Window symbol: gap in wall + 3 parallel lines -->
+        <!-- Front facade windows -->
+        <line x1="80" y1="490" x2="120" y2="490" stroke="#8ac8e0" stroke-width="3"/>
+        <line x1="80" y1="487" x2="120" y2="487" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="80" y1="493" x2="120" y2="493" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="170" y1="490" x2="210" y2="490" stroke="#8ac8e0" stroke-width="3"/>
+        <line x1="170" y1="487" x2="210" y2="487" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="170" y1="493" x2="210" y2="493" stroke="#4ab8c8" stroke-width="0.8"/>
+        <!-- Left facade windows -->
+        <line x1="60" y1="80" x2="60" y2="130" stroke="#8ac8e0" stroke-width="3"/>
+        <line x1="57" y1="80" x2="57" y2="130" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="63" y1="80" x2="63" y2="130" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="60" y1="200" x2="60" y2="260" stroke="#8ac8e0" stroke-width="3"/>
+        <line x1="57" y1="200" x2="57" y2="260" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="63" y1="200" x2="63" y2="260" stroke="#4ab8c8" stroke-width="0.8"/>
+        <!-- Right facade window -->
+        <line x1="580" y1="80" x2="580" y2="120" stroke="#8ac8e0" stroke-width="3"/>
+        <line x1="577" y1="80" x2="577" y2="120" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="583" y1="80" x2="583" y2="120" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="580" y1="300" x2="580" y2="360" stroke="#8ac8e0" stroke-width="3"/>
+        <line x1="577" y1="300" x2="577" y2="360" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="583" y1="300" x2="583" y2="360" stroke="#4ab8c8" stroke-width="0.8"/>
+        <!-- Kitchen window on top -->
+        <line x1="280" y1="50" x2="370" y2="50" stroke="#8ac8e0" stroke-width="3"/>
+        <line x1="280" y1="47" x2="370" y2="47" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="280" y1="53" x2="370" y2="53" stroke="#4ab8c8" stroke-width="0.8"/>
+        <!-- Right bedroom window top -->
+        <line x1="420" y1="50" x2="450" y2="50" stroke="#8ac8e0" stroke-width="2.5"/>
+        <line x1="420" y1="47" x2="450" y2="47" stroke="#4ab8c8" stroke-width="0.8"/>
+        <line x1="420" y1="53" x2="450" y2="53" stroke="#4ab8c8" stroke-width="0.8"/>
+      </g>
+
+      <!-- ── STAIR DETAIL ── -->
+      <g class="fp-stairs" opacity="0">
+        <rect x="402" y="162" width="76" height="116" fill="rgba(74,184,200,0.03)" stroke="#5a9ab0" stroke-width="1"/>
+        <!-- Stair treads -->
+        <line x1="402" y1="172" x2="478" y2="172" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <line x1="402" y1="182" x2="478" y2="182" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <line x1="402" y1="192" x2="478" y2="192" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <line x1="402" y1="202" x2="478" y2="202" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <line x1="402" y1="212" x2="478" y2="212" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <line x1="402" y1="222" x2="478" y2="222" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <line x1="402" y1="232" x2="478" y2="232" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <line x1="402" y1="242" x2="478" y2="242" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <line x1="402" y1="252" x2="478" y2="252" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <line x1="402" y1="262" x2="478" y2="262" stroke="#4ab8c8" stroke-width="0.8" opacity="0.5"/>
+        <!-- Direction arrow -->
+        <line x1="430" y1="268" x2="430" y2="168" stroke="#e8b44a" stroke-width="1.2" marker-end="url(#arr-dim)"/>
+        <text x="446" y="220" fill="rgba(232,180,74,0.6)" font-family="'Space Mono',monospace" font-size="6.5" transform="rotate(90,446,220)">UP</text>
+        <!-- Stair landing hatching -->
+        <line x1="402" y1="162" x2="416" y2="176" stroke="rgba(74,184,200,0.2)" stroke-width="0.5"/>
+        <line x1="408" y1="162" x2="422" y2="176" stroke="rgba(74,184,200,0.2)" stroke-width="0.5"/>
+        <line x1="464" y1="162" x2="478" y2="176" stroke="rgba(74,184,200,0.2)" stroke-width="0.5"/>
+        <line x1="458" y1="162" x2="472" y2="176" stroke="rgba(74,184,200,0.2)" stroke-width="0.5"/>
+      </g>
+
+      <!-- ── FIXTURES & FITTINGS ── -->
+      <g class="fp-fixtures" opacity="0">
+        <!-- Toilet (Bathroom 1, top-left area) -->
+        <ellipse cx="100" cy="155" rx="14" ry="18" stroke="#4ab8c8" stroke-width="0.8" fill="rgba(74,184,200,0.05)"/>
+        <rect x="86" y="163" width="28" height="12" stroke="#4ab8c8" stroke-width="0.8" fill="rgba(74,184,200,0.05)"/>
+        <!-- Sink bathroom -->
+        <rect x="62" y="135" width="20" height="20" rx="4" stroke="#4ab8c8" stroke-width="0.8" fill="rgba(74,184,200,0.05)"/>
+        <circle cx="72" cy="145" r="4" stroke="#4ab8c8" stroke-width="0.6" fill="none"/>
+        <!-- Shower area hatch -->
+        <rect x="62" y="62" width="48" height="60" fill="url(#hatch-tile)" stroke="rgba(74,184,200,0.3)" stroke-width="0.8"/>
+        <circle cx="86" cy="92" r="8" stroke="rgba(74,184,200,0.4)" stroke-width="0.8" fill="none"/>
+        <text x="86" y="95" fill="rgba(74,184,200,0.4)" font-family="'Space Mono',monospace" font-size="5" text-anchor="middle">SHR</text>
+
+        <!-- Kitchen sink -->
+        <rect x="255" y="165" width="30" height="20" rx="2" stroke="#4ab8c8" stroke-width="0.8" fill="rgba(74,184,200,0.05)"/>
+        <circle cx="270" cy="175" r="4" stroke="#4ab8c8" stroke-width="0.6" fill="none"/>
+        <!-- Kitchen counter (L-shape) -->
+        <rect x="252" y="162" width="120" height="8" fill="rgba(74,184,200,0.08)" stroke="rgba(74,184,200,0.3)" stroke-width="0.6"/>
+        <rect x="372" y="162" width="8" height="80" fill="rgba(74,184,200,0.08)" stroke="rgba(74,184,200,0.3)" stroke-width="0.6"/>
+        <!-- Kitchen table oval -->
+        <ellipse cx="300" cy="230" rx="32" ry="22" stroke="rgba(74,184,200,0.3)" stroke-width="0.8" fill="rgba(74,184,200,0.03)"/>
+        <!-- Dining chairs -->
+        <rect x="268" y="210" width="10" height="8" rx="1" stroke="rgba(74,184,200,0.25)" stroke-width="0.6" fill="none"/>
+        <rect x="322" y="210" width="10" height="8" rx="1" stroke="rgba(74,184,200,0.25)" stroke-width="0.6" fill="none"/>
+        <rect x="268" y="234" width="10" height="8" rx="1" stroke="rgba(74,184,200,0.25)" stroke-width="0.6" fill="none"/>
+        <rect x="322" y="234" width="10" height="8" rx="1" stroke="rgba(74,184,200,0.25)" stroke-width="0.6" fill="none"/>
+        <rect x="292" y="205" width="18" height="7" rx="1" stroke="rgba(74,184,200,0.25)" stroke-width="0.6" fill="none"/>
+        <rect x="292" y="241" width="18" height="7" rx="1" stroke="rgba(74,184,200,0.25)" stroke-width="0.6" fill="none"/>
+
+        <!-- Living room sofa (L-shape) -->
+        <rect x="68" y="400" width="90" height="28" rx="3" stroke="#4ab8c8" stroke-width="0.8" fill="rgba(74,184,200,0.06)"/>
+        <rect x="68" y="400" width="28" height="55" rx="3" stroke="#4ab8c8" stroke-width="0.8" fill="rgba(74,184,200,0.06)"/>
+        <!-- Coffee table -->
+        <rect x="110" y="420" width="40" height="24" rx="2" stroke="rgba(74,184,200,0.3)" stroke-width="0.7" fill="rgba(74,184,200,0.03)"/>
+        <!-- TV wall mount -->
+        <rect x="68" y="292" width="70" height="6" fill="rgba(74,184,200,0.15)" stroke="rgba(74,184,200,0.4)" stroke-width="0.7"/>
+
+        <!-- Bed 1 (master, lower-left) -->
+        <rect x="68" y="295" width="60" height="78" rx="2" stroke="#4ab8c8" stroke-width="0.8" fill="rgba(74,184,200,0.04)"/>
+        <rect x="68" y="295" width="60" height="14" fill="rgba(74,184,200,0.1)" stroke="rgba(74,184,200,0.3)" stroke-width="0.5"/>
+        <line x1="98" y1="295" x2="98" y2="373" stroke="rgba(74,184,200,0.15)" stroke-width="0.5"/>
+        <!-- Bedside tables -->
+        <rect x="62" y="312" width="6" height="18" stroke="rgba(74,184,200,0.2)" stroke-width="0.5" fill="none"/>
+        <rect x="128" y="312" width="6" height="18" stroke="rgba(74,184,200,0.2)" stroke-width="0.5" fill="none"/>
+
+        <!-- Wardrobe / closet (left) -->
+        <rect x="62" y="386" width="72" height="10" fill="rgba(74,184,200,0.08)" stroke="rgba(74,184,200,0.35)" stroke-width="0.7"/>
+        <line x1="98" y1="386" x2="98" y2="396" stroke="rgba(74,184,200,0.2)" stroke-width="0.5"/>
+
+        <!-- Bed 2 (right bedroom) -->
+        <rect x="500" y="300" width="72" height="90" rx="2" stroke="#4ab8c8" stroke-width="0.8" fill="rgba(74,184,200,0.04)"/>
+        <rect x="500" y="300" width="72" height="14" fill="rgba(74,184,200,0.1)" stroke="rgba(74,184,200,0.3)" stroke-width="0.5"/>
+        <line x1="536" y1="300" x2="536" y2="390" stroke="rgba(74,184,200,0.15)" stroke-width="0.5"/>
+
+        <!-- Laundry machine -->
+        <rect x="498" y="428" width="28" height="28" rx="2" stroke="#4ab8c8" stroke-width="0.7" fill="rgba(74,184,200,0.04)"/>
+        <circle cx="512" cy="442" r="9" stroke="#4ab8c8" stroke-width="0.7" fill="none"/>
+        <circle cx="512" cy="442" r="5" stroke="rgba(74,184,200,0.3)" stroke-width="0.5" fill="none"/>
+        <!-- WC right bathroom -->
+        <ellipse cx="542" cy="310" rx="11" ry="14" stroke="#4ab8c8" stroke-width="0.7" fill="rgba(74,184,200,0.04)"/>
+        <rect x="531" y="318" width="22" height="10" stroke="#4ab8c8" stroke-width="0.7" fill="rgba(74,184,200,0.04)"/>
+
+        <!-- Veranda (dashed furniture) -->
+        <rect x="232" y="498" width="56" height="22" rx="3" stroke="rgba(74,184,200,0.3)" stroke-width="0.7" stroke-dasharray="3 2" fill="none"/>
+        <rect x="296" y="498" width="56" height="22" rx="3" stroke="rgba(74,184,200,0.3)" stroke-width="0.7" stroke-dasharray="3 2" fill="none"/>
+      </g>
+
+      <!-- ── DIMENSION LINES ── -->
+      <g class="fp-dims" opacity="0" font-family="'Space Mono',monospace" fill="#e8b44a" font-size="8">
+        <!-- Horizontal overall -->
+        <line x1="60" y1="522" x2="580" y2="522" stroke="#e8b44a" stroke-width="0.8"/>
+        <line x1="60" y1="517" x2="60" y2="527" stroke="#e8b44a" stroke-width="0.8"/>
+        <line x1="580" y1="517" x2="580" y2="527" stroke="#e8b44a" stroke-width="0.8"/>
+        <text x="320" y="519" text-anchor="middle" font-size="9" font-weight="bold">43 200</text>
+
+        <!-- Horizontal sub-dims -->
+        <line x1="60" y1="512" x2="240" y2="512" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <line x1="60" y1="508" x2="60" y2="516" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <line x1="240" y1="508" x2="240" y2="516" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <text x="150" y="509" text-anchor="middle" font-size="7" fill="rgba(232,180,74,0.8)">15 000</text>
+
+        <line x1="240" y1="512" x2="400" y2="512" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <line x1="400" y1="508" x2="400" y2="516" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <text x="320" y="509" text-anchor="middle" font-size="7" fill="rgba(232,180,74,0.8)">13 000</text>
+
+        <line x1="400" y1="512" x2="580" y2="512" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <line x1="580" y1="508" x2="580" y2="516" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <text x="490" y="509" text-anchor="middle" font-size="7" fill="rgba(232,180,74,0.8)">15 200</text>
+
+        <!-- Vertical overall -->
+        <line x1="36" y1="50" x2="36" y2="490" stroke="#e8b44a" stroke-width="0.8"/>
+        <line x1="31" y1="50" x2="41" y2="50" stroke="#e8b44a" stroke-width="0.8"/>
+        <line x1="31" y1="490" x2="41" y2="490" stroke="#e8b44a" stroke-width="0.8"/>
+        <text x="26" y="275" text-anchor="middle" font-size="9" font-weight="bold" transform="rotate(-90,26,275)">36 600</text>
+
+        <!-- Vertical sub-dims -->
+        <line x1="44" y1="50" x2="44" y2="280" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <line x1="40" y1="280" x2="48" y2="280" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <text x="50" y="168" text-anchor="middle" font-size="7" fill="rgba(232,180,74,0.8)" transform="rotate(-90,50,168)">18 600</text>
+
+        <line x1="44" y1="280" x2="44" y2="490" stroke="rgba(232,180,74,0.5)" stroke-width="0.6"/>
+        <text x="50" y="388" text-anchor="middle" font-size="7" fill="rgba(232,180,74,0.8)" transform="rotate(-90,50,388)">18 000</text>
+      </g>
+
+      <!-- ── ROOM LABELS ── -->
+      <g class="fp-labels" opacity="0" font-family="'Space Mono',monospace" fill="rgba(74,184,200,0.65)" font-size="8.5" text-anchor="middle">
+        <text x="148" y="430">LIVING ROOM</text>
+        <text x="148" y="441" font-size="7" fill="rgba(74,184,200,0.4)">24.5 m²</text>
+        <text x="148" y="330">MASTER</text>
+        <text x="148" y="341">BEDROOM</text>
+        <text x="148" y="352" font-size="7" fill="rgba(74,184,200,0.4)">18.2 m²</text>
+        <text x="110" y="118">TOILET &amp; BATH</text>
+        <text x="110" y="129" font-size="7" fill="rgba(74,184,200,0.4)">5.8 m²</text>
+        <text x="310" y="200">KITCHEN /</text>
+        <text x="310" y="211">DINING</text>
+        <text x="310" y="222" font-size="7" fill="rgba(74,184,200,0.4)">28.4 m²</text>
+        <text x="440" y="215">STAIR</text>
+        <text x="440" y="226" font-size="7" fill="rgba(74,184,200,0.4)">CORE</text>
+        <text x="535" y="345">BEDROOM</text>
+        <text x="535" y="356">2</text>
+        <text x="535" y="367" font-size="7" fill="rgba(74,184,200,0.4)">14.0 m²</text>
+        <text x="535" y="450">LAUNDRY /</text>
+        <text x="535" y="461">UTILITY</text>
+        <text x="535" y="472" font-size="7" fill="rgba(74,184,200,0.4)">6.4 m²</text>
+        <text x="300" y="470">FOYER / VERANDA</text>
+        <text x="300" y="481" font-size="7" fill="rgba(74,184,200,0.4)">12.0 m²</text>
+        <text x="520" y="100">BALCONY</text>
+        <text x="520" y="111" font-size="7" fill="rgba(74,184,200,0.4)">(OPEN)</text>
+      </g>
+
+      <!-- ── ANNOTATIONS & CALLOUTS ── -->
+      <g class="fp-annotations" opacity="0">
+        <!-- Section cut A-A -->
+        <line x1="60" y1="350" x2="580" y2="350" stroke="rgba(232,180,74,0.35)" stroke-width="0.8" stroke-dasharray="8 4"/>
+        <circle cx="56" cy="350" r="10" stroke="#e8b44a" stroke-width="0.8" fill="rgba(14,17,23,0.9)"/>
+        <text x="56" y="347" fill="#e8b44a" font-family="'Space Mono',monospace" font-size="7" text-anchor="middle">A</text>
+        <line x1="56" y1="354" x2="56" y2="357" stroke="#e8b44a" stroke-width="0.8"/>
+        <text x="56" y="363" fill="#e8b44a" font-family="'Space Mono',monospace" font-size="6" text-anchor="middle">1</text>
+        <circle cx="584" cy="350" r="10" stroke="#e8b44a" stroke-width="0.8" fill="rgba(14,17,23,0.9)"/>
+        <text x="584" y="347" fill="#e8b44a" font-family="'Space Mono',monospace" font-size="7" text-anchor="middle">A</text>
+        <line x1="584" y1="354" x2="584" y2="357" stroke="#e8b44a" stroke-width="0.8"/>
+        <text x="584" y="363" fill="#e8b44a" font-family="'Space Mono',monospace" font-size="6" text-anchor="middle">1</text>
+
+        <!-- Column callout box -->
+        <rect x="612" y="52" width="120" height="56" fill="rgba(74,184,200,0.04)" stroke="rgba(74,184,200,0.2)" stroke-width="0.6"/>
+        <text x="672" y="66" fill="rgba(74,184,200,0.6)" font-family="'Space Mono',monospace" font-size="7" text-anchor="middle">COLUMN SCHEDULE</text>
+        <line x1="612" y1="70" x2="732" y2="70" stroke="rgba(74,184,200,0.15)" stroke-width="0.5"/>
+        <text x="618" y="80" fill="rgba(74,184,200,0.5)" font-family="'Space Mono',monospace" font-size="6.5">C1: 300×300</text>
+        <text x="618" y="91" fill="rgba(74,184,200,0.4)" font-family="'Space Mono',monospace" font-size="6.5">8-16Ø MAIN</text>
+        <text x="618" y="102" fill="rgba(74,184,200,0.4)" font-family="'Space Mono',monospace" font-size="6.5">10Ø TIES @100</text>
+
+        <!-- Material legend -->
+        <rect x="612" y="120" width="120" height="80" fill="rgba(74,184,200,0.04)" stroke="rgba(74,184,200,0.2)" stroke-width="0.6"/>
+        <text x="672" y="134" fill="rgba(74,184,200,0.6)" font-family="'Space Mono',monospace" font-size="7" text-anchor="middle">LEGEND</text>
+        <line x1="612" y1="138" x2="732" y2="138" stroke="rgba(74,184,200,0.15)" stroke-width="0.5"/>
+        <rect x="618" y="144" width="10" height="10" fill="url(#hatch-rc)" stroke="#4ab8c8" stroke-width="0.5"/>
+        <text x="634" y="153" fill="rgba(74,184,200,0.45)" font-family="'Space Mono',monospace" font-size="6.5">RC COLUMN</text>
+        <rect x="618" y="158" width="10" height="6" fill="url(#hatch-tile)" stroke="rgba(74,184,200,0.3)" stroke-width="0.5"/>
+        <text x="634" y="166" fill="rgba(74,184,200,0.45)" font-family="'Space Mono',monospace" font-size="6.5">TILE AREA</text>
+        <line x1="618" y1="175" x2="628" y2="175" stroke="#4ab8c8" stroke-width="2.5"/>
+        <text x="634" y="178" fill="rgba(74,184,200,0.45)" font-family="'Space Mono',monospace" font-size="6.5">EXT WALL</text>
+        <line x1="618" y1="186" x2="628" y2="186" stroke="#7ab8d0" stroke-width="1.8"/>
+        <text x="634" y="189" fill="rgba(74,184,200,0.45)" font-family="'Space Mono',monospace" font-size="6.5">INT WALL</text>
+
+        <!-- North arrow -->
+        <g transform="translate(672,330)">
+          <circle cx="0" cy="0" r="20" stroke="rgba(74,184,200,0.3)" stroke-width="0.8" fill="rgba(74,184,200,0.03)"/>
+          <polygon points="0,-15 -5,8 0,4 5,8" fill="#4ab8c8"/>
+          <polygon points="0,-15 -5,8 0,4 5,8" fill="rgba(74,184,200,0.12)" transform="rotate(180)"/>
+          <text x="0" y="-21" fill="#4ab8c8" font-family="'Space Mono',monospace" font-size="9" text-anchor="middle" font-weight="bold">N</text>
+        </g>
+
+        <!-- Structural grid lines (A-B-C / 1-2-3) -->
+        <text x="65" y="42" fill="rgba(74,184,200,0.35)" font-family="'Space Mono',monospace" font-size="9" text-anchor="middle" font-weight="bold">A</text>
+        <text x="245" y="42" fill="rgba(74,184,200,0.35)" font-family="'Space Mono',monospace" font-size="9" text-anchor="middle" font-weight="bold">B</text>
+        <text x="405" y="42" fill="rgba(74,184,200,0.35)" font-family="'Space Mono',monospace" font-size="9" text-anchor="middle" font-weight="bold">C</text>
+        <text x="585" y="42" fill="rgba(74,184,200,0.35)" font-family="'Space Mono',monospace" font-size="9" text-anchor="middle" font-weight="bold">D</text>
+        <text x="50" y="58" fill="rgba(74,184,200,0.35)" font-family="'Space Mono',monospace" font-size="9" text-anchor="end" font-weight="bold">1</text>
+        <text x="50" y="288" fill="rgba(74,184,200,0.35)" font-family="'Space Mono',monospace" font-size="9" text-anchor="end" font-weight="bold">2</text>
+        <text x="50" y="498" fill="rgba(74,184,200,0.35)" font-family="'Space Mono',monospace" font-size="9" text-anchor="end" font-weight="bold">3</text>
+        <!-- Grid dashed column lines -->
+        <line x1="65" y1="50" x2="65" y2="490" stroke="rgba(74,184,200,0.08)" stroke-width="0.5" stroke-dasharray="6 4"/>
+        <line x1="245" y1="50" x2="245" y2="490" stroke="rgba(74,184,200,0.08)" stroke-width="0.5" stroke-dasharray="6 4"/>
+        <line x1="405" y1="50" x2="405" y2="490" stroke="rgba(74,184,200,0.08)" stroke-width="0.5" stroke-dasharray="6 4"/>
+        <line x1="585" y1="50" x2="585" y2="490" stroke="rgba(74,184,200,0.08)" stroke-width="0.5" stroke-dasharray="6 4"/>
+        <line x1="60" y1="58" x2="580" y2="58" stroke="rgba(74,184,200,0.08)" stroke-width="0.5" stroke-dasharray="6 4"/>
+        <line x1="60" y1="288" x2="580" y2="288" stroke="rgba(74,184,200,0.08)" stroke-width="0.5" stroke-dasharray="6 4"/>
+        <line x1="60" y1="498" x2="580" y2="498" stroke="rgba(74,184,200,0.08)" stroke-width="0.5" stroke-dasharray="6 4"/>
+      </g>
+
+    </svg>
+    <div class="fp-bottom-label">ALL DIMENSIONS IN MILLIMETERS · f'c = 28 MPa · fy = 415 MPa · NSCP 2015</div>
+  </div><!-- /intro-fp-wrap -->
+
+  <div id="intro-name">Iain Matthew <strong>Barruga</strong></div>
+</div>
+
+<!-- Cursor glow -->
+<div class="cursor-glow" id="glow"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">I.M. Barruga</div>
+  <ul class="nav-links">
+    <li><a href="#projects">Projects</a></li>
+    <li><a href="#process">Process</a></li>
+    <li><a href="#education">Education</a></li>
+    <li><a href="#skills">Skills</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ul>
+  <div class="nav-right">
+    <div class="nav-status"><div class="status-dot"></div>Open to Freelance Work</div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-text">
+    <div class="eyebrow">Civil Engineering Student · San Nicolas, Ilocos Norte</div>
+    <h1 class="hero-name">Iain Matthew<br><strong>Barruga</strong></h1>
+    <div class="student-badge">
+      <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4.5" stroke="currentColor" fill="none"/><text x="5" y="8" text-anchor="middle" font-size="6" fill="currentColor">i</text></svg>
+      4th Year Student
+    </div>
+    <p class="hero-desc">
+      Civil engineering student building a foundation in <em>structural analysis</em>, <em>construction planning,</em> and <em>technical drafting.</em>
+      I'm looking to apply and grow my technical knowledge, problem-solving skills, and work ethic in real project work.
+    </p>
+    <div class="hero-ctas">
+      <a href="#projects" class="cta-primary">View My Work →</a>
+      <a href="#contact" class="cta-secondary">Get in Touch</a>
+      <a href="assets/Iain_Barruga_Resume.pdf" download class="cta-secondary cta-download">↓ Download Resume</a>
+    </div>
+    <div class="hero-stats">
+      <div>
+        <div class="stat-val">4<span>th</span></div>
+        <div class="stat-label">Year Standing</div>
+      </div>
+      <div>
+        <div class="stat-val">5<span>+</span></div>
+        <div class="stat-label">Yrs Freelance AutoCAD</div>
+      </div>
+      <div>
+        <div class="stat-val">320<span></span></div>
+        <div class="stat-label">OJT Hours (QA/QC)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERO VISUAL - floor plan pans here from intro -->
+  <div class="hero-visual" id="hero-visual-panel">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <div class="bp-wrap" id="hero-bp-wrap">
+      <div class="bp-label">DWG-A-FP01 · Ground Floor Plan · Scale 1:100<span class="bp-cursor"></span></div>
+      <!-- Hero floor plan - animated independently after intro fades -->
+      <svg id="hero-fp-svg" viewBox="0 0 800 580" xmlns="http://www.w3.org/2000/svg" fill="none"
+           class="in-hero" style="width:100%;height:auto;display:block;opacity:0;transition:opacity 0.6s ease;">
+        <!-- This is populated by JS cloning the intro SVG content -->
+      </svg>
+      <div class="bp-label" style="margin-top:8px;text-align:right;">ALL DIMENSIONS IN MILLIMETERS</div>
+    </div>
+  </div>
+</div>
+
+<!-- ABOUT STRIP -->
+<div class="about-strip reveal">
+  <div>
+    <div class="about-label">About</div>
+    <div class="about-heading">Building<br>the future,<br>one beam<br>at a time.</div>
+  </div>
+  <div>
+    <p class="about-p">
+      I'm a <strong>4th-year Civil Engineering student</strong> from Brgy. 11, San Nicolas, Ilocos Norte, studying at <strong>Mariano Marcos State University</strong> in Batac City. I have a strong foundation in engineering mathematics and structural analysis, and I'm proficient in <strong>AutoCAD</strong> and <strong>SketchUp</strong> for technical drafting.
+    </p>
+    <p class="about-p">
+      I'm familiar with construction project planning and cost estimation, and comfortable interpreting blueprints and technical drawings, skills I've built through coursework and hands-on freelance drafting work.
+    </p>
+  </div>
+  <div>
+    <p class="about-p">
+      My goal is to apply and further develop these skills through real project work. I take deadlines seriously and work well in a team.
+    </p>
+    <p class="about-p">
+      I'm currently available for <strong>freelance work</strong>: AutoCAD drafting, 2D floor plans, and 3D models for residential and commercial clients. I'm easy to work with and willing to learn and adapt in fast-paced environments.
+    </p>
+  </div>
+</div>
+
+<!-- PROJECTS -->
+<section id="projects">
+  <div class="sec-head reveal">
+    <div class="sec-tag">Portfolio</div>
+    <h2 class="sec-title">Featured Projects</h2>
+    <div class="sec-rule"></div>
+  </div>
+
+  <div class="projects-grid">
+
+    <!-- Card 1 -->
+    <div class="project-card reveal" data-pdf="assets/pdfs/residential-building.pdf" data-title="Proposed 6-Storey Residential Building" tabindex="0" role="button" onclick="openPdfViewer(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPdfViewer(this);}">
+      <div class="project-type">Architectural · Structural</div>
+      <div class="mini-plan mini-plan-img">
+        <img src="assets/images/residential-building.webp" alt="Proposed 6-Storey Residential Building" loading="lazy">
+      </div>
+      <div class="project-name">Proposed 6-Storey Residential Building</div>
+      <div class="project-desc">Full architectural and structural drawing set for a 6-storey residential building, ground-floor commercial units with five upper residential floors (10 units/floor: master's bedroom, bedroom, T&amp;B, living, kitchen &amp; dining). Includes site development plan, all floor plans, elevations, and cross sections.</div>
+      <div class="project-specs">
+        <span class="spec-pill">50.0m × 40.0m</span>
+        <span class="spec-pill">6 Storeys · 28.15m</span>
+        <span class="spec-pill">10 Units/Floor</span>
+        <span class="spec-pill">AutoCAD</span>
+      </div>
+      <div class="project-status status-academic">● BSCE IV-A · Architectural Drawings</div>
+    </div>
+
+    <!-- Card 2 -->
+    <div class="project-card reveal" data-pdf="assets/pdfs/gas-station.pdf" data-title="Portable Gasoline Station: Canopy &amp; Site Structure" tabindex="0" role="button" onclick="openPdfViewer(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPdfViewer(this);}">
+      <div class="project-type">Structural · Site Development</div>
+      <div class="mini-plan mini-plan-img">
+        <img src="assets/images/gas-station.webp" alt="Proposed Construction of Portable Gasoline Station" loading="lazy">
+      </div>
+      <div class="project-name">Portable Gasoline Station: Canopy &amp; Site Structure</div>
+      <div class="project-desc">Independent structural documentation for a single-bay portable gasoline canopy on Lot 31039-A. Includes full site development plan with lot technical description (bearing &amp; distance survey), foundation and isolated column footing detail, and roof beam/truss framing plan.</div>
+      <div class="project-specs">
+        <span class="spec-pill">4.0m × 4.0m Bay</span>
+        <span class="spec-pill">1.0m Sq. Footing</span>
+        <span class="spec-pill">FFL +0.20m</span>
+        <span class="spec-pill">Lot 31039-A</span>
+      </div>
+      <div class="project-status status-academic">● Independent Project · Site &amp; Structural Detailing</div>
+    </div>
+
+    <!-- Card 3 -->
+    <div class="project-card reveal" data-pdf="assets/pdfs/palacio-fire-sprinkler.pdf" data-title="Palacio de Laoag: Fire &amp; Sprinkler As-Built Plan" tabindex="0" role="button" onclick="openPdfViewer(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPdfViewer(this);}">
+      <div class="project-type">Fire Protection · As-Built Documentation</div>
+      <div class="mini-plan mini-plan-img">
+        <img src="assets/images/palacio-fire-sprinkler.webp" alt="As-Built Plan of Palacio de Laoag Fire and Sprinkler" loading="lazy">
+      </div>
+      <div class="project-name">Palacio de Laoag: Fire &amp; Sprinkler As-Built Plan</div>
+      <div class="project-desc">As-built fire protection documentation for a 4-storey function hall and events venue. Produced the rear and right-side elevations marked up with sprinkler branch-line and riser routing, floor-by-floor, for BI Sch. 40 piping from ½&quot; branch lines up to 2&quot; mains.</div>
+      <div class="project-specs">
+        <span class="spec-pill">4-Storey Elevation</span>
+        <span class="spec-pill">½&quot;–2&quot; BI Pipe Sch 40</span>
+        <span class="spec-pill">Rear + Right Side</span>
+        <span class="spec-pill">As-Built</span>
+      </div>
+      <div class="project-status status-collab">● Field Documentation · Fire &amp; Sprinkler System</div>
+    </div>
+
+    <!-- Card 4 -->
+    <div class="project-card reveal" data-pdf="assets/pdfs/municipal-building.pdf" data-title="Proposed 6-Storey Municipal Building" tabindex="0" role="button" onclick="openPdfViewer(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPdfViewer(this);}">
+      <div class="project-type">Structural · Government Building</div>
+      <div class="mini-plan mini-plan-img">
+        <img src="assets/images/municipal-building.webp" alt="Proposed 6-Storey Municipal Building" loading="lazy">
+      </div>
+      <div class="project-name">Proposed 6-Storey Municipal Building</div>
+      <div class="project-desc">Collaborative BSCE IV-A structural documentation set for a 6-storey municipal hall (function halls and administrative offices per floor). Contributed to the rear elevation drawing, showing the full window and column bay rhythm across all six floors plus roof-level parapet.</div>
+      <div class="project-specs">
+        <span class="spec-pill">Rear Elevation</span>
+        <span class="spec-pill">30.4m Height</span>
+        <span class="spec-pill">6 Storeys</span>
+        <span class="spec-pill">1:100</span>
+      </div>
+      <div class="project-status status-collab">● Cohort Collaboration · Structural Set</div>
+    </div>
+
+    <!-- Card 5 -->
+    <div class="project-card reveal" data-pdf="assets/pdfs/kiln-design.pdf" data-title="Laboratory Gas Kiln Design" tabindex="0" role="button" onclick="openPdfViewer(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPdfViewer(this);}">
+      <div class="project-type">Interdisciplinary · Refractories</div>
+      <div class="mini-plan mini-plan-img">
+        <img src="assets/images/kiln-design.webp" alt="Refractories and Kiln Design" loading="lazy">
+      </div>
+      <div class="project-name">Laboratory Gas Kiln Design</div>
+      <div class="project-desc">Interdisciplinary collaboration with the Ceramic Engineering program (CERE 136: Refractories &amp; Kiln Design). Produced the isometric and front-view drawings for a laboratory gas kiln, including chamber door and internal refractory chamber details.</div>
+      <div class="project-specs">
+        <span class="spec-pill">Isometric View</span>
+        <span class="spec-pill">Front View</span>
+        <span class="spec-pill">Refractory Chamber</span>
+        <span class="spec-pill">Interdisciplinary</span>
+      </div>
+      <div class="project-status status-collab">● Cross-Program Collaboration · CERE 136</div>
+    </div>
+
+    <!-- Card 6 -->
+    <div class="project-card reveal" data-pdf="assets/pdfs/bsd.pdf" data-title="Proposed Two-Storey Residential Building" tabindex="0" role="button" onclick="openPdfViewer(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPdfViewer(this);}">
+      <div class="project-type">Architectural · Residential</div>
+      <div class="mini-plan mini-plan-img">
+        <img src="assets/images/bsd.png" alt="Proposed Two-Storey Residential Building" loading="lazy">
+      </div>
+      <div class="project-name">Proposed Two-Storey Residential Building</div>
+      <div class="project-desc">Full architectural drawing set for a two-storey single-family residence, covering the ground and upper floor plans, elevations, and cross sections drawn to scale with consistent annotation and dimensioning standards.</div>
+      <div class="project-specs">
+        <span class="spec-pill">2 Storeys</span>
+        <span class="spec-pill">Residential</span>
+        <span class="spec-pill">AutoCAD</span>
+      </div>
+      <div class="project-status status-academic">● Architectural Drawings</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- DESIGN PROCESS SECTION -->
+<section id="process" class="process-section reveal">
+  <div class="sec-head">
+    <div class="sec-tag">How I Work</div>
+    <h2 class="sec-title" style="color:var(--white);">Design Process</h2>
+    <div class="sec-rule"></div>
+  </div>
+
+  <div class="process-steps">
+    <div class="process-step reveal">
+      <div class="process-num">01</div>
+      <div class="process-body">
+        <div class="process-title">Site Investigation &amp; Programming</div>
+        <div class="process-desc">Gather lot data, technical descriptions, and client requirements. Establish setbacks, easements, and the spatial program before a single line is drawn.</div>
+      </div>
+    </div>
+
+    <div class="process-step reveal">
+      <div class="process-num">02</div>
+      <div class="process-body">
+        <div class="process-title">Conceptual Layout &amp; Sketching</div>
+        <div class="process-desc">Rough floor plans and massing studies to test circulation, unit layouts, and structural grid options against the site constraints.</div>
+      </div>
+    </div>
+
+    <div class="process-step reveal">
+      <div class="process-num">03</div>
+      <div class="process-body">
+        <div class="process-title">CAD Drafting &amp; Detailing</div>
+        <div class="process-desc">Full AutoCAD production set: floor plans, elevations, sections, and details, drawn to scale with consistent line weights and annotation standards.</div>
+      </div>
+    </div>
+
+    <div class="process-step reveal">
+      <div class="process-num">04</div>
+      <div class="process-body">
+        <div class="process-title">Structural &amp; Systems Coordination</div>
+        <div class="process-desc">Foundation, framing, and utility routing (fire &amp; sprinkler, plumbing) checked against architectural drawings to catch clashes before they reach the field.</div>
+      </div>
+    </div>
+
+    <div class="process-step reveal">
+      <div class="process-num">05</div>
+      <div class="process-body">
+        <div class="process-title">Review, Revision &amp; As-Built Documentation</div>
+        <div class="process-desc">Markups incorporated, sheets finalized, and (for completed projects) field verification against the as-built condition.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- EDUCATION -->
+<section id="education" class="edu-section">
+  <div class="sec-head reveal">
+    <div class="sec-tag">Academic Track</div>
+    <h2 class="sec-title">Education &amp; Experience</h2>
+    <div class="sec-rule"></div>
+  </div>
+
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="tl-period">2021 - Present</div>
+      <div class="tl-role">Bachelor of Science in Civil Engineering</div>
+      <div class="tl-company">Mariano Marcos State University · Batac City, Ilocos Norte</div>
+      <div class="tl-desc">Currently in 4th year, specializing in the structural track. Coursework covers Structural Theory, Reinforced Concrete Design, Foundation Engineering, Highway Engineering, and Hydraulics. I approach each subject like it's something I'll actually use on the job, because eventually, I will.</div>
+    </div>
+    <div class="timeline-item">
+      <div class="tl-period">Jan 2021 - Present</div>
+      <div class="tl-role">Freelance AutoCAD Draftsman</div>
+      <div class="tl-company">Independent / Remote Work</div>
+      <div class="tl-desc">Draw 2D floor plans and 3D models in AutoCAD for residential and commercial clients. Prepare project schedules and site layouts to keep tasks on time, and work directly with clients to translate design ideas into clear technical drawings. Cut project design time by 20% through better work methods and faster file organization.</div>
+    </div>
+    <div class="timeline-item">
+      <div class="tl-period">2026</div>
+      <div class="tl-role">On-the-Job Trainee: QA/QC, Operations &amp; Planning</div>
+      <div class="tl-company">MDBI Construction Development</div>
+      <div class="tl-desc">Completed 320 hours of on-the-job training in the QA/QC, Operations, and Planning department, gaining hands-on exposure to site quality control processes and construction project planning.</div>
+    </div>
+    <div class="timeline-item">
+      <div class="tl-period">2021 - Present</div>
+      <div class="tl-role">Student Member</div>
+      <div class="tl-company">PICE Student Chapter · Mariano Marcos State University</div>
+      <div class="tl-desc">Takes part in technical seminars, design competitions, and engineering outreach activities through the Philippine Institute of Civil Engineers student chapter at MMSU. Attended the NatCon Seminar in Cebu City (2022) and completed 40 hours of Construction Occupational Health &amp; Safety training (2025).</div>
+    </div>
+  </div>
+</section>
+
+<!-- CERTIFICATIONS & SEMINARS -->
+<section style="background: var(--bg); padding-top: 0; padding-bottom: 80px;">
+  <div class="sec-head reveal" style="padding: 0 0 40px;">
+    <div class="sec-tag">Professional Development</div>
+    <h2 class="sec-title">Certifications &amp; Seminars</h2>
+    <div class="sec-rule"></div>
+  </div>
+  <div class="course-grid reveal">
+    <div class="course-card"><div class="course-code">2026</div><div class="course-name">320 Hours OJT: QA/QC, Operations &amp; Planning Dept., MDBI Construction Development</div><div class="course-grade">On-the-Job Training</div></div>
+    <div class="course-card"><div class="course-code">2025</div><div class="course-name">40 Hours: Construction Occupational Health &amp; Safety</div><div class="course-grade">Certificate of Completion</div></div>
+    <div class="course-card"><div class="course-code">2022</div><div class="course-name">NatCon Seminar, Cebu City</div><div class="course-grade">Seminar Attendance</div></div>
+  </div>
+</section>
+
+<!-- SKILLS -->
+<section id="skills" style="background: var(--surface);">
+  <div class="sec-head reveal">
+    <div class="sec-tag">Capabilities</div>
+    <h2 class="sec-title">Technical Skills</h2>
+    <div class="sec-rule"></div>
+  </div>
+  <div class="skills-grid" style="grid-template-columns: 1fr 1fr;">
+    <div class="skill-group reveal">
+      <div class="sg-title">Software</div>
+      <div class="skill-item">AutoCAD <div class="skill-bar-track"><div class="skill-bar-fill" style="--w:85%"></div></div></div>
+      <div class="skill-item">SketchUp <div class="skill-bar-track"><div class="skill-bar-fill" style="--w:80%"></div></div></div>
+    </div>
+    <div class="skill-group reveal">
+      <div class="sg-title">Core Skills</div>
+      <div class="skill-item">Construction Project Planning &amp; Cost Estimation <span style="color:var(--teal)">✓</span></div>
+      <div class="skill-item">Engineering Mathematics &amp; Structural Analysis <span style="color:var(--teal)">✓</span></div>
+      <div class="skill-item">Interpreting Blueprints &amp; Technical Drawings <span style="color:var(--teal)">✓</span></div>
+      <div class="skill-item">Time Management &amp; Teamwork <span style="color:var(--teal)">✓</span></div>
+      <div class="skill-item">Adaptable in Fast-Paced Environments <span style="color:var(--teal)">✓</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact" class="contact-section">
+  <div class="sec-head reveal">
+    <div class="sec-tag">Get in Touch</div>
+    <h2 class="sec-title">Contact</h2>
+    <div class="sec-rule"></div>
+  </div>
+  <div class="contact-wrap reveal">
+    <div class="contact-left">
+      <p>I'm open to <strong style="color:var(--text)">freelance projects</strong>: AutoCAD drafting, 2D floor plans, 3D models, and similar civil engineering drafting work. If you have something in mind, I'd love to hear about it. I usually reply within a day.</p>
+      <div class="contact-line">
+        <span class="cl-icon">Email</span>
+        <span class="cl-val"><a href="mailto:ayinmatyu.0523@gmail.com">ayinmatyu.0523@gmail.com</a></span>
+      </div>
+      <div class="contact-line">
+        <span class="cl-icon">Phone</span>
+        <span class="cl-val"><a href="tel:+639199435693">+63 919 943 5693</a></span>
+      </div>
+      <div class="contact-line">
+        <span class="cl-icon">School</span>
+        <span class="cl-val">Mariano Marcos State University, Batac City</span>
+      </div>
+      <div class="contact-line">
+        <span class="cl-icon">Location</span>
+        <span class="cl-val">Brgy. 11, San Nicolas, Ilocos Norte, PH</span>
+      </div>
+      <div class="contact-line">
+        <span class="cl-icon">Status</span>
+        <span class="cl-val" style="color:var(--gold)">4th Year CE Student · MMSU · Graduating 2026</span>
+      </div>
+      <div class="contact-line">
+        <span class="cl-icon">Reference</span>
+        <span class="cl-val" style="color:var(--muted)">Engr. Jorge Escalona, Wind Project Development Manager, Aboitiz Power Corporation</span>
+      </div>
+      <a href="assets/Iain_Barruga_Resume.pdf" download class="cta-secondary cta-download" style="margin-top:24px;">↓ Download Full Resume (PDF)</a>
+    </div>
+    <form class="contact-form" id="contact-form" novalidate>
+      <div class="form-group">
+        <label class="form-label">Your Name</label>
+        <input type="text" class="form-input" id="cf-name" name="name" placeholder="Juan dela Cruz" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="email" class="form-input" id="cf-email" name="email" placeholder="juan@company.com" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Purpose</label>
+        <input type="text" class="form-input" id="cf-purpose" name="purpose" placeholder="e.g. AutoCAD drafting, floor plans, 3D models…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-textarea" id="cf-message" name="message" placeholder="Tell me about your project and what you need…" required></textarea>
+      </div>
+      <div class="form-status" id="cf-status" aria-live="polite"></div>
+      <button type="submit" class="submit-btn" id="cf-submit">Send Message →</button>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <div>© 2025 Iain Matthew Barruga · <span class="gold">CE Student</span> · Mariano Marcos State University</div>
+  <div>CE Board Exam Target: <span class="gold">2026</span> · PICE Student Member</div>
+</footer>
+
+  <!-- PDF VIEWER MODAL -->
+  <div id="pdf-modal" class="pdf-modal" role="dialog" aria-modal="true" aria-label="Project PDF viewer">
+    <div class="pdf-modal-backdrop" onclick="closePdfViewer()"></div>
+    <div class="pdf-modal-panel">
+      <div class="pdf-modal-header">
+        <div class="pdf-modal-title" id="pdf-modal-title">Project</div>
+        <button class="pdf-modal-close" onclick="closePdfViewer()" aria-label="Close">✕</button>
+      </div>
+      <div class="pdf-modal-body">
+        <button class="pdf-nav-btn pdf-nav-prev" onclick="pdfPrevPage()" aria-label="Previous page">‹</button>
+        <div class="pdf-canvas-wrap">
+          <div class="pdf-loading" id="pdf-loading">Loading PDF…</div>
+          <canvas id="pdf-canvas"></canvas>
+        </div>
+        <button class="pdf-nav-btn pdf-nav-next" onclick="pdfNextPage()" aria-label="Next page">›</button>
+      </div>
+      <div class="pdf-modal-footer">
+        <span id="pdf-page-indicator">Page 1 of 1</span>
+        <div class="pdf-zoom-controls">
+          <button class="pdf-zoom-btn" onclick="pdfZoomOut()" aria-label="Zoom out">−</button>
+          <span id="pdf-zoom-level">100%</span>
+          <button class="pdf-zoom-btn" onclick="pdfZoomIn()" aria-label="Zoom in">+</button>
+          <button class="pdf-zoom-btn pdf-zoom-reset" onclick="pdfZoomReset()">Reset</button>
+        </div>
+        <a id="pdf-download-link" class="pdf-download-link" href="#" download>Download PDF ↓</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
