@@ -1,3 +1,26 @@
+/* Mobile nav toggle */
+(function () {
+  const toggle = document.getElementById('nav-toggle');
+  const links  = document.getElementById('nav-links');
+  if (!toggle || !links) return;
+
+  function closeMenu() {
+    links.classList.remove('open');
+    toggle.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+  }
+  function toggleMenu() {
+    const isOpen = links.classList.toggle('open');
+    toggle.classList.toggle('open', isOpen);
+    toggle.setAttribute('aria-expanded', String(isOpen));
+  }
+
+  toggle.addEventListener('click', toggleMenu);
+  links.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+  window.addEventListener('resize', () => { if (window.innerWidth > 768) closeMenu(); });
+})();
+
 /* Cursor glow */
 const glow = document.getElementById('glow');
 document.addEventListener('mousemove', e => {

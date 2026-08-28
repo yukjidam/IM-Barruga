@@ -432,7 +432,7 @@
 <!-- NAV -->
 <nav>
   <div class="nav-logo">I.M. Barruga</div>
-  <ul class="nav-links">
+  <ul class="nav-links" id="nav-links">
     <li><a href="#projects">Projects</a></li>
     <li><a href="#process">Process</a></li>
     <li><a href="#education">Education</a></li>
@@ -441,6 +441,9 @@
   </ul>
   <div class="nav-right">
     <div class="nav-status"><div class="status-dot"></div>Open to Freelance Work</div>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="nav-links">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </nav>
 
@@ -742,7 +745,7 @@
     <h2 class="sec-title">Technical Skills</h2>
     <div class="sec-rule"></div>
   </div>
-  <div class="skills-grid" style="grid-template-columns: 1fr 1fr;">
+  <div class="skills-grid skills-grid-2col">
     <div class="skill-group reveal">
       <div class="sg-title">Software</div>
       <div class="skill-item">AutoCAD <div class="skill-bar-track"><div class="skill-bar-fill" style="--w:85%"></div></div></div>
