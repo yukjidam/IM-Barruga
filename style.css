@@ -763,6 +763,13 @@ section { padding: 96px 80px; position: relative; }
 /* ── EDUCATION / EXPERIENCE ──────────────────────── */
 .edu-section { background: var(--surface); }
 
+.cert-section {
+  background: var(--bg);
+  padding-top: 64px;
+  padding-bottom: 80px;
+}
+.cert-sec-head { padding: 0 0 40px; }
+
 .timeline {
   position: relative;
   padding-left: 36px;
@@ -1180,6 +1187,7 @@ footer .gold { color: var(--gold); }
   background: #0a1018;
   position: relative;
   cursor: grab;
+  touch-action: pan-x pan-y;
 }
 #pdf-canvas { display: block; margin: auto; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(74,184,200,0.15); }
 
@@ -1265,9 +1273,33 @@ footer .gold { color: var(--gold); }
 .pdf-download-link:hover { color: var(--gold); border-color: var(--gold); }
 
 @media (max-width: 640px) {
-  .pdf-modal-panel { width: 100vw; height: 100vh; }
-  .pdf-nav-btn { width: 32px; height: 48px; font-size: 18px; }
-  .pdf-modal-body { padding: 10px; gap: 4px; }
+  .pdf-modal-panel {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh; /* avoids mobile browser chrome clipping the panel */
+  }
+  .pdf-modal-header { padding: 12px 14px; }
+  .pdf-modal-title {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pdf-nav-btn { width: 36px; height: 52px; font-size: 18px; }
+  .pdf-modal-body { padding: 8px; gap: 6px; }
+
+  .pdf-modal-footer {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 14px;
+    padding: 10px 12px;
+  }
+  #pdf-page-indicator {
+    order: -1;
+    flex: 1 0 100%;
+    text-align: center;
+  }
+  .pdf-download-link { padding: 8px 12px; font-size: 9px; }
 }
 
 /* ── SCROLL REVEAL ───────────────────────────────── */
@@ -1287,7 +1319,14 @@ footer .gold { color: var(--gold); }
   .nav-status { display: none; }
   section { padding: 64px 32px; }
   .about-strip { grid-template-columns: 1fr; gap: 32px; padding: 48px 32px; }
-  .projects-grid { grid-template-columns: 1fr; }
+  .projects-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    background: transparent;
+    border: none;
+  }
+  .project-card { border: 1px solid var(--border); }
+  .mini-plan { height: 220px; max-height: none; }
   .skills-grid { grid-template-columns: 1fr; }
   .course-grid { grid-template-columns: 1fr 1fr; }
   .contact-wrap { grid-template-columns: 1fr; gap: 48px; }
@@ -1341,6 +1380,7 @@ footer .gold { color: var(--gold); }
   .stat-val { font-size: 22px; }
 
   section { padding: 48px 20px; }
+  .cert-section { padding-top: 40px; padding-bottom: 48px; }
   .sec-head { gap: 12px; margin-bottom: 40px; flex-wrap: wrap; }
   .sec-title { font-size: 26px; }
 
@@ -1348,6 +1388,7 @@ footer .gold { color: var(--gold); }
   .about-heading { font-size: 28px; }
 
   .project-card { padding: 24px 20px; }
+  .mini-plan { height: 190px; }
   .project-name { font-size: 19px; }
 
   .course-grid { grid-template-columns: 1fr; }

@@ -192,10 +192,15 @@ bars.forEach(b => barObs.observe(b));
       const effectiveScale = Math.max(fitScale * zoomFactor, 0.2);
       const viewport = page.getViewport({ scale: effectiveScale });
 
-      canvas.width  = viewport.width;
-      canvas.height = viewport.height;
+      // Render at devicePixelRatio so text/lines stay crisp on high-DPI phone screens
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width  = Math.floor(viewport.width  * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
+      canvas.style.width  = viewport.width  + 'px';
+      canvas.style.height = viewport.height + 'px';
 
       const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const renderTask = page.render({ canvasContext: ctx, viewport });
       return renderTask.promise;
     }).then(() => {
@@ -234,6 +239,44 @@ bars.forEach(b => barObs.observe(b));
         if (e.deltaY < 0) pdfZoomIn(); else pdfZoomOut();
       }
     }, { passive: false });
+
+    // Pinch-to-zoom (touch)
+    let pinchStartDist = null;
+    let pinchStartZoom = 1;
+    let pinchLiveRatio = 1;
+
+    function touchDist(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.hypot(dx, dy);
+    }
+
+    canvasWrapEl.addEventListener('touchstart', e => {
+      if (!pdfDoc) return;
+      if (e.touches.length === 2) {
+        pinchStartDist = touchDist(e.touches);
+        pinchStartZoom = zoomFactor;
+        pinchLiveRatio = 1;
+      }
+    }, { passive: true });
+
+    canvasWrapEl.addEventListener('touchmove', e => {
+      if (!pdfDoc || !pinchStartDist || e.touches.length !== 2) return;
+      e.preventDefault();
+      pinchLiveRatio = touchDist(e.touches) / pinchStartDist;
+      // Cheap live preview via CSS transform; committed with a real re-render on touchend
+      canvas.style.transform = `scale(${pinchLiveRatio})`;
+    }, { passive: false });
+
+    canvasWrapEl.addEventListener('touchend', e => {
+      if (!pinchStartDist || e.touches.length >= 2) return;
+      canvas.style.transform = '';
+      zoomFactor = Math.min(Math.max(pinchStartZoom * pinchLiveRatio, 0.5), 3);
+      pinchStartDist = null;
+      pinchLiveRatio = 1;
+      updateZoomLabel();
+      renderPage(currentPage, true);
+    });
   }
 })();
 
