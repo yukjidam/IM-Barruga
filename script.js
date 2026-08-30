@@ -1,3 +1,43 @@
+/* "Blueprint → As-Built" toggle (Blueprint / night mode is the default) */
+(function () {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  const root = document.documentElement;
+  const labelTop = document.getElementById('hero-bp-label-top-text');
+  const labelBottom = document.getElementById('hero-bp-label-bottom');
+
+  const COPY = {
+    blueprint: {
+      top: 'DWG-A-FP01 · Ground Floor Plan · Scale 1:100',
+      bottom: 'ALL DIMENSIONS IN MILLIMETERS'
+    },
+    built: {
+      top: 'AS-BUILT-A-ISO01 · Isometric View · As Constructed',
+      bottom: 'SAME PROJECT · FINAL PHASE'
+    }
+  };
+
+  function setState() {
+    const isBuilt = root.classList.contains('day-mode');
+    const label = isBuilt ? 'Switch to Blueprint (dark) mode' : 'Switch to As-Built (light) mode';
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+    btn.setAttribute('aria-checked', String(isBuilt));
+
+    const copy = isBuilt ? COPY.built : COPY.blueprint;
+    if (labelTop) labelTop.textContent = copy.top;
+    if (labelBottom) labelBottom.textContent = copy.bottom;
+  }
+
+  btn.addEventListener('click', function () {
+    const isBuilt = root.classList.toggle('day-mode');
+    try { localStorage.setItem('theme', isBuilt ? 'day' : 'night'); } catch (e) {}
+    setState();
+  });
+
+  setState();
+})();
+
 /* Mobile nav toggle */
 (function () {
   const toggle = document.getElementById('nav-toggle');

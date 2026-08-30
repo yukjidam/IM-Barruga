@@ -11,10 +11,64 @@
   --text:      #e8e6df;
   --muted:     #7a8494;
   --white:     #ffffff;
+  --heading:   #ffffff;
 
   --f-display: 'Cormorant Garamond', Georgia, serif;
   --f-body:    'Space Grotesk', system-ui, sans-serif;
   --f-mono:    'Space Mono', monospace;
+}
+
+/* ── DAY MODE ─────────────────────────────────────
+   Night mode (above) is the default. Toggling adds
+   .day-mode to <html>, which remaps the same custom
+   properties everything else already relies on. ── */
+/* ── BLUEPRINT ⇄ AS-BUILT MODE ────────────────────
+   Night mode = "Blueprint Phase" (default). Toggling
+   adds .day-mode to <html> for the "As-Built Phase":
+   finished construction, concrete gray + canvas white.
+   Same custom properties everything already relies on. ── */
+html.day-mode {
+  --bg:        #eef0ee;
+  --surface:   #ffffff;
+  --surface2:  #e2e5e1;
+  --border:    rgba(28,32,28,0.12);
+  --gold:      #a97a28;
+  --gold-dim:  rgba(169,122,40,0.14);
+  --teal:      #12707f;
+  --teal-dim:  rgba(18,112,127,0.10);
+  --text:      #1c2024;
+  --muted:     #667079;
+  --white:     #ffffff;
+  --heading:   #0e1013;
+}
+
+html.day-mode body { -webkit-font-smoothing: antialiased; }
+html.day-mode nav { background: rgba(238,240,238,0.85); }
+html.day-mode .skill-bar-track { background: rgba(28,32,28,0.08); }
+@media (max-width: 768px) {
+  html.day-mode .nav-links { background: rgba(238,240,238,0.98); }
+}
+html.day-mode .cursor-glow { opacity: 0.28; }
+
+/* Sitewide drafting grid — faint cyan gridlines on the blueprint
+   background; a subtle structural gray grid once "built". Sits
+   behind all content via negative z-index. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(74,184,200,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,184,200,0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+  transition: background-image 0.4s ease;
+}
+html.day-mode body::before {
+  background-image:
+    linear-gradient(rgba(28,32,28,0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(28,32,28,0.045) 1px, transparent 1px);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -122,7 +176,7 @@ body {
   font-family: var(--f-display);
   font-size: clamp(22px, 2.8vw, 38px);
   font-weight: 300;
-  color: var(--white);
+  color: var(--heading);
   letter-spacing: 4px;
   text-transform: uppercase;
   opacity: 0;
@@ -263,6 +317,92 @@ nav {
   gap: 24px;
 }
 
+/* ── "Blueprint → As-Built" toggle ──────────────────
+   A drafting-instrument switch: a compass (planning)
+   slides to a built skyline (finished construction)
+   across a track styled like a drawing-sheet grid. ── */
+.ce-toggle {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ce-toggle-track {
+  position: relative;
+  width: 88px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface2);
+  overflow: hidden;
+  transition: background 0.35s ease, border-color 0.35s ease;
+}
+.ce-toggle-track::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(74,184,200,0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,184,200,0.35) 1px, transparent 1px);
+  background-size: 8px 8px;
+  opacity: 0.5;
+  transition: opacity 0.35s ease, background-image 0.35s ease;
+}
+html.day-mode .ce-toggle-track::before {
+  background-image:
+    linear-gradient(rgba(28,32,28,0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(28,32,28,0.14) 1px, transparent 1px);
+  opacity: 0.6;
+}
+.ce-toggle-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--f-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  z-index: 2;
+  pointer-events: none;
+  transition: color 0.35s ease, opacity 0.35s ease;
+}
+.ce-toggle-label-left { left: 6px; color: var(--teal); opacity: 1; }
+.ce-toggle-label-right { right: 5px; color: var(--muted); opacity: 0.35; }
+html.day-mode .ce-toggle-label-left { color: var(--muted); opacity: 0.35; }
+html.day-mode .ce-toggle-label-right { color: var(--gold); opacity: 1; }
+.ce-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--teal);
+  border-radius: 2px;
+  color: var(--teal);
+  z-index: 3;
+  transition: transform 0.35s cubic-bezier(.65,0,.35,1), border-color 0.35s ease, color 0.35s ease, background 0.35s ease;
+}
+html.day-mode .ce-toggle-knob {
+  transform: translateX(58px);
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--surface);
+}
+.ce-icon { width: 14px; height: 14px; display: block; }
+.ce-icon-building { display: none; }
+html.day-mode .ce-icon-compass { display: none; }
+html.day-mode .ce-icon-building { display: block; }
+.ce-toggle:hover .ce-toggle-track { border-color: var(--teal); }
+html.day-mode .ce-toggle:hover .ce-toggle-track { border-color: var(--gold); }
+.ce-toggle:active { transform: scale(0.96); }
+
 /* Hamburger toggle - hidden on desktop, shown at the nav-collapse breakpoint */
 .nav-toggle {
   display: none;
@@ -356,7 +496,7 @@ nav {
   font-size: clamp(48px, 5.5vw, 78px);
   font-weight: 300;
   line-height: 1.0;
-  color: var(--white);
+  color: var(--heading);
   margin-bottom: 24px;
   letter-spacing: -1px;
 }
@@ -464,7 +604,7 @@ nav {
   font-family: var(--f-mono);
   font-size: 26px;
   font-weight: 700;
-  color: var(--white);
+  color: var(--heading);
   line-height: 1;
 }
 .stat-val span { color: var(--gold); }
@@ -531,6 +671,71 @@ svg.blueprint {
   filter: drop-shadow(0 16px 48px rgba(74,184,200,0.12));
 }
 
+/* ── HERO DWG: "Blueprint → As-Built" ──────────────
+   Night mode shows the raw drawing exactly as drafted
+   (cyan CAD ink on midnight blue floor plan). Day mode
+   crossfades to an illustrated isometric of the actual
+   finished house — same drafting-ink language (teal
+   linework, gold accents), just the built phase of the
+   same project. Both SVGs are stacked in the same grid
+   cell and swap via opacity + a soft scale settle. */
+.hero-visual-stack {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 800 / 580;
+}
+.hero-visual-stack > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#hero-fp-svg {
+  transition: opacity 0.5s ease, filter 0.5s ease, transform 0.6s ease;
+  filter: drop-shadow(0 16px 40px rgba(74,184,200,0.1));
+}
+html.day-mode #hero-fp-svg {
+  opacity: 0 !important;
+  transform: scale(0.97);
+  pointer-events: none;
+}
+
+#hero-mass-svg {
+  opacity: 0;
+  transform: scale(1.03);
+  transition: opacity 0.6s ease 0.1s, transform 0.7s ease 0.1s;
+  filter: drop-shadow(0 16px 40px rgba(169,122,40,0.14));
+  pointer-events: none;
+}
+html.day-mode #hero-mass-svg {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+/* Staggered "construction reveal" — ground up, then upper floor,
+   then roof, then the porch settles in last, on every toggle to day mode. */
+#hero-mass-svg .iso-part {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+html.day-mode #hero-mass-svg .iso-part { opacity: 1; transform: translateY(0); }
+html.day-mode #hero-mass-svg .iso-d0  { transition-delay: 0.05s; }
+html.day-mode #hero-mass-svg .iso-d1  { transition-delay: 0.12s; }
+html.day-mode #hero-mass-svg .iso-d2  { transition-delay: 0.2s; }
+html.day-mode #hero-mass-svg .iso-d3  { transition-delay: 0.28s; }
+html.day-mode #hero-mass-svg .iso-d4  { transition-delay: 0.36s; }
+html.day-mode #hero-mass-svg .iso-d5  { transition-delay: 0.42s; }
+html.day-mode #hero-mass-svg .iso-d4b { transition-delay: 0.5s; }
+html.day-mode #hero-mass-svg .iso-d6  { transition-delay: 0.56s; }
+
+/* Hero panel dot grid + corner glow follow the same phase */
+html.day-mode .hero-visual::before {
+  background-image: radial-gradient(circle, rgba(28,32,28,0.12) 1px, transparent 1px);
+}
+
 /* animated draw-on */
 .dl { stroke-dasharray: 800; stroke-dashoffset: 800; animation: draw 1.6s cubic-bezier(.4,0,.2,1) forwards; }
 .dl.d1 { animation-delay: 0.1s; }
@@ -590,7 +795,7 @@ svg.blueprint {
   font-family: var(--f-display);
   font-size: 38px;
   font-weight: 600;
-  color: var(--white);
+  color: var(--heading);
   line-height: 1.15;
 }
 
@@ -624,7 +829,7 @@ section { padding: 96px 80px; position: relative; }
   font-family: var(--f-display);
   font-size: 36px;
   font-weight: 600;
-  color: var(--white);
+  color: var(--heading);
   letter-spacing: -0.5px;
 }
 .sec-rule {
@@ -716,7 +921,7 @@ section { padding: 96px 80px; position: relative; }
   font-family: var(--f-display);
   font-size: 22px;
   font-weight: 600;
-  color: var(--white);
+  color: var(--heading);
   margin-bottom: 10px;
   line-height: 1.25;
 }
@@ -759,6 +964,7 @@ section { padding: 96px 80px; position: relative; }
 .status-academic { color: var(--teal); }
 .status-thesis   { color: var(--gold); }
 .status-collab   { color: #a78bfa; }
+html.day-mode .status-collab { color: #7c3aed; }
 
 /* ── EDUCATION / EXPERIENCE ──────────────────────── */
 .edu-section { background: var(--surface); }
@@ -815,7 +1021,7 @@ section { padding: 96px 80px; position: relative; }
   font-family: var(--f-display);
   font-size: 20px;
   font-weight: 600;
-  color: var(--white);
+  color: var(--heading);
   margin-bottom: 4px;
 }
 
@@ -1035,6 +1241,7 @@ section { padding: 96px 80px; position: relative; }
 }
 .form-status.status-error { color: #e0665a; }
 .form-status.status-ok { color: var(--teal); }
+html.day-mode .form-status.status-error { color: #c0392b; }
 
 /* ── FOOTER ──────────────────────────────────────── */
 footer {
@@ -1087,7 +1294,7 @@ footer .gold { color: var(--gold); }
   font-family: var(--f-display);
   font-size: 18px;
   font-weight: 600;
-  color: var(--white);
+  color: var(--heading);
   margin-bottom: 8px;
 }
 
@@ -1151,7 +1358,7 @@ footer .gold { color: var(--gold); }
   font-family: var(--f-display);
   font-size: 15px;
   font-weight: 600;
-  color: var(--white);
+  color: var(--heading);
   padding-right: 16px;
 }
 .pdf-modal-close {
@@ -1370,6 +1577,10 @@ footer .gold { color: var(--gold); }
   nav { padding: 0 16px; height: 56px; }
   .nav-logo { font-size: 10px; }
   #intro-name { bottom: 24px; letter-spacing: 2px; }
+
+  .ce-toggle-track { width: 52px; }
+  .ce-toggle-label { display: none; }
+  html.day-mode .ce-toggle-knob { transform: translateX(22px); }
 
   .hero-text { padding: 44px 20px 56px; }
   .hero-name { letter-spacing: -0.5px; }
