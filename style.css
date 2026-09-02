@@ -707,29 +707,41 @@ html.day-mode #hero-fp-svg {
   transition: opacity 0.6s ease 0.1s, transform 0.7s ease 0.1s;
   filter: drop-shadow(0 16px 40px rgba(169,122,40,0.14));
   pointer-events: none;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 html.day-mode #hero-mass-svg {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto;
 }
-
-/* Staggered "construction reveal" — ground up, then upper floor,
-   then roof, then the porch settles in last, on every toggle to day mode. */
-#hero-mass-svg .iso-part {
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
+#hero-mass-svg.grabbing { cursor: grabbing; }
+#hero-mass-svg #mass-render polygon,
+#hero-mass-svg #mass-render line {
+  transition: fill 0.15s ease;
 }
-html.day-mode #hero-mass-svg .iso-part { opacity: 1; transform: translateY(0); }
-html.day-mode #hero-mass-svg .iso-d0  { transition-delay: 0.05s; }
-html.day-mode #hero-mass-svg .iso-d1  { transition-delay: 0.12s; }
-html.day-mode #hero-mass-svg .iso-d2  { transition-delay: 0.2s; }
-html.day-mode #hero-mass-svg .iso-d3  { transition-delay: 0.28s; }
-html.day-mode #hero-mass-svg .iso-d4  { transition-delay: 0.36s; }
-html.day-mode #hero-mass-svg .iso-d5  { transition-delay: 0.42s; }
-html.day-mode #hero-mass-svg .iso-d4b { transition-delay: 0.5s; }
-html.day-mode #hero-mass-svg .iso-d6  { transition-delay: 0.56s; }
+
+/* "Drag to rotate" hint - shown once in day mode, fades on first interaction */
+.mass-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 10px/1 var(--mono, monospace);
+  letter-spacing: 0.08em;
+  color: var(--teal);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease 0.9s;
+}
+html.day-mode .mass-hint { opacity: 0.65; }
+.mass-hint.hint-hide { opacity: 0 !important; transition: opacity 0.4s ease; }
+.mass-hint svg { flex-shrink: 0; }
 
 /* Hero panel dot grid + corner glow follow the same phase */
 html.day-mode .hero-visual::before {
