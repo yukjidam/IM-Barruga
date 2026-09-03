@@ -743,6 +743,66 @@ html.day-mode .mass-hint { opacity: 0.65; }
 .mass-hint.hint-hide { opacity: 0 !important; transition: opacity 0.4s ease; }
 .mass-hint svg { flex-shrink: 0; }
 
+/* Building gallery nav (prev/next + counter) - lives top-right of the
+   massing view, only meaningful (and visible) once As-Built mode is on */
+.mass-nav {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.5s ease 0.15s, transform 0.5s ease 0.15s;
+}
+html.day-mode .mass-nav {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.mass-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(169,122,40,0.35);
+  background: rgba(255,255,255,0.55);
+  color: var(--gold);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+.mass-nav-btn:hover { border-color: var(--gold); background: rgba(255,255,255,0.85); }
+.mass-nav-btn:active { transform: scale(0.9); }
+.mass-nav-btn svg { flex-shrink: 0; }
+.mass-nav-count {
+  font: 600 9px/1 var(--mono, monospace);
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  min-width: 40px;
+  text-align: center;
+}
+
+/* Piece-by-piece assembly animation for the massing model - each polygon/
+   line fades and rises into place, staggered bottom-up via animation-delay
+   set inline by script.js. Opacity + a uniform translateY only - no scale.
+   Scale shrinks each element toward its own bounding-box centre, and thin
+   full-height mullion lines shrinking independently (each on its own
+   stagger) is what produced the "melting/tapering grid" look mid-animation.
+   A plain vertical shift never changes an element's size, so pieces can
+   never visually taper or misalign while settling into place. */
+@keyframes massPieceIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#mass-render .piece {
+  animation: massPieceIn 0.5s cubic-bezier(0.16, 0.84, 0.44, 1) both;
+}
+
 /* Hero panel dot grid + corner glow follow the same phase */
 html.day-mode .hero-visual::before {
   background-image: radial-gradient(circle, rgba(28,32,28,0.12) 1px, transparent 1px);
