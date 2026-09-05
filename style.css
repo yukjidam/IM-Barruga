@@ -1402,6 +1402,8 @@ footer .gold { color: var(--gold); }
 
 /* ── DESIGN PROCESS SECTION ──────────────────────── */
 .process-section { background: var(--bg); }
+.process-section .sec-title { color: var(--heading); }
+html.day-mode .process-section .sec-title { color: var(--heading) !important; }
 
 .process-steps {
   display: flex;
