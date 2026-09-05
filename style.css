@@ -1419,42 +1419,101 @@ html.day-mode .status-collab { color: #7c3aed; }
   80%      { transform: translate(2px, 0); }
 }
 
-/* ── CUSTOM CURSOR ───────────────────────────────────
-   A surveyor's-transit reticle in place of the default
-   arrow — fits the civil-engineering theme. Two-tone
-   (dark + white) stroke keeps it visible over both the
-   dark and light (day-mode) backgrounds. A smaller
-   filled "snap point" cursor marks anything clickable. */
-html, body {
-  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="8.5" fill="none" stroke="%230e1013" stroke-width="2.6"/><circle cx="14" cy="14" r="8.5" fill="none" stroke="white" stroke-width="1.1"/><line x1="14" y1="0.5" x2="14" y2="6.5" stroke="%230e1013" stroke-width="2.6"/><line x1="14" y1="0.5" x2="14" y2="6.5" stroke="white" stroke-width="1.1"/><line x1="14" y1="21.5" x2="14" y2="27.5" stroke="%230e1013" stroke-width="2.6"/><line x1="14" y1="21.5" x2="14" y2="27.5" stroke="white" stroke-width="1.1"/><line x1="0.5" y1="14" x2="6.5" y2="14" stroke="%230e1013" stroke-width="2.6"/><line x1="0.5" y1="14" x2="6.5" y2="14" stroke="white" stroke-width="1.1"/><line x1="21.5" y1="14" x2="27.5" y2="14" stroke="%230e1013" stroke-width="2.6"/><line x1="21.5" y1="14" x2="27.5" y2="14" stroke="white" stroke-width="1.1"/><circle cx="14" cy="14" r="1.6" fill="%234ab8c8"/></svg>') 14 14, default;
+/* Custom cursor replaced by a JS-driven live reticle — see below. */
+
+/* ── LIVE CAD CURSOR ─────────────────────────────────
+   A slim crosshair + dot that follows the pointer, with
+   a running coordinate readout like a CAD viewport. A
+   thin gold ring pops in only over clickable elements
+   (a "snap point" cue), and a caret bar shows over text
+   fields. JS adds .ce-cursor-active to <html> once real
+   mouse movement is detected — if JS never runs (or the
+   device has no fine pointer), the native cursor is left
+   alone. */
+html.ce-cursor-active,
+html.ce-cursor-active * {
+  cursor: none !important;
 }
 
-a,
-button,
-input[type="submit"],
-input[type="button"],
-.project-card,
-.cta-primary,
-.cta-secondary,
-.ce-toggle,
-.nav-toggle,
-.mass-nav-btn,
-.pdf-zoom-btn,
-.pdf-nav-btn,
-.pdf-modal-close,
-.submit-btn,
-[role="button"],
-[onclick] {
-  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke="%230e1013" stroke-width="2.4"/><circle cx="12" cy="12" r="7" fill="none" stroke="white" stroke-width="1"/><circle cx="12" cy="12" r="4" fill="%23e8b44a"/></svg>') 12 12, pointer;
+.ce-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 99999;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+html.ce-cursor-active .ce-cursor { opacity: 1; }
+
+.ce-cursor-ring {
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  width: 40px;
+  height: 40px;
+  display: block;
+  overflow: visible;
+}
+.ce-cursor-dot { transition: r 0.2s ease, fill 0.2s ease; }
+.ce-cursor-textbar { opacity: 0; transition: opacity 0.15s ease; }
+.ce-cursor-circle-group { transition: opacity 0.15s ease; }
+
+/* The snap-point ring: invisible at rest, pops in on hover */
+.ce-cursor-snap-ring {
+  opacity: 0;
+  transform: scale(0.5);
+  transform-origin: 20px 20px;
+  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(.34,1.56,.64,1);
 }
 
-/* Native text-entry fields keep the ordinary text caret */
-input[type="text"],
-input[type="email"],
-textarea,
-.form-input,
-.form-textarea {
-  cursor: text;
+.ce-cursor-coords {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  font-family: var(--f-mono);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--teal);
+  text-shadow: 0 0 4px var(--bg), 0 0 4px var(--bg), 0 1px 2px var(--bg);
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+
+/* Hovering a clickable element: ring pops in, dot turns gold */
+.ce-cursor.is-active .ce-cursor-snap-ring { opacity: 0.8; transform: scale(1); }
+.ce-cursor.is-active .ce-cursor-dot { r: 1.8; fill: var(--gold); }
+.ce-cursor.is-active .ce-cursor-coords { opacity: 0; }
+.ce-cursor.is-active .ce-cursor-label { opacity: 1; }
+
+.ce-cursor-label {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  font-family: var(--f-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  text-shadow: 0 0 4px var(--bg), 0 0 4px var(--bg), 0 1px 2px var(--bg);
+  opacity: 0;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+
+/* Hovering a text field: crosshair hides, a thin caret bar shows instead */
+.ce-cursor.is-text .ce-cursor-circle-group { opacity: 0; }
+.ce-cursor.is-text .ce-cursor-textbar { opacity: 1; }
+.ce-cursor.is-text .ce-cursor-coords,
+.ce-cursor.is-text .ce-cursor-label { opacity: 0; }
+
+/* Quick pulse on click, for tactile feedback */
+.ce-cursor.is-click .ce-cursor-ring { transform: scale(0.82); transition: transform 0.12s ease; }
+
+@media (pointer: coarse) {
+  .ce-cursor { display: none; }
 }
 
 .form-status {

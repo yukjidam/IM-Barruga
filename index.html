@@ -934,5 +934,26 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <script src="script.js"></script>
+
+  <!-- Live CAD-viewport cursor -->
+  <div class="ce-cursor" id="ce-cursor" aria-hidden="true">
+    <svg class="ce-cursor-ring" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+      <g class="ce-cursor-circle-group">
+        <circle class="ce-cursor-snap-ring" cx="20" cy="20" r="8" fill="none" stroke="var(--gold)" stroke-width="1.2"/>
+        <line x1="20" y1="14" x2="20" y2="17.5" stroke="var(--teal)" stroke-width="1.1"/>
+        <line x1="20" y1="22.5" x2="20" y2="26" stroke="var(--teal)" stroke-width="1.1"/>
+        <line x1="14" y1="20" x2="17.5" y2="20" stroke="var(--teal)" stroke-width="1.1"/>
+        <line x1="22.5" y1="20" x2="26" y2="20" stroke="var(--teal)" stroke-width="1.1"/>
+        <circle class="ce-cursor-dot" cx="20" cy="20" r="1.3" fill="var(--teal)"/>
+      </g>
+      <g class="ce-cursor-textbar">
+        <line x1="20" y1="12" x2="20" y2="28" stroke="var(--teal)" stroke-width="1.3"/>
+        <line x1="16.5" y1="12" x2="23.5" y2="12" stroke="var(--teal)" stroke-width="1.3"/>
+        <line x1="16.5" y1="28" x2="23.5" y2="28" stroke="var(--teal)" stroke-width="1.3"/>
+      </g>
+    </svg>
+    <div class="ce-cursor-coords" id="ce-cursor-coords">X 000 · Y 000</div>
+    <div class="ce-cursor-label">OPEN →</div>
+  </div>
 </body>
 </html>

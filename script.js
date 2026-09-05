@@ -904,3 +904,71 @@ bars.forEach(b => barObs.observe(b));
   });
   mo.observe(root, { attributes: true, attributeFilter: ['class'] });
 })();
+
+/* ══════════════════════════════════════════════════
+   LIVE CAD CURSOR
+   A theodolite-style reticle that eases toward the real
+   pointer position, shows a running coordinate readout,
+   and morphs over links/buttons (snap point) and text
+   fields (caret bar). Skipped entirely on touch devices.
+   ══════════════════════════════════════════════════ */
+(function () {
+  function init() {
+    const cursor = document.getElementById('ce-cursor');
+    if (!cursor) return;
+    if (!window.matchMedia('(pointer: fine)').matches) return;
+
+    const coordsEl = document.getElementById('ce-cursor-coords');
+    const root = document.documentElement;
+
+    const INTERACTIVE = 'a, button, [role="button"], .project-card, .ce-toggle, .nav-toggle, [onclick]';
+    const TEXT_FIELD  = 'input[type="text"], input[type="email"], textarea';
+
+    let targetX = window.innerWidth / 2, targetY = window.innerHeight / 2;
+    let curX = targetX, curY = targetY;
+    let activated = false;
+
+    function activate() {
+      if (activated) return;
+      activated = true;
+      root.classList.add('ce-cursor-active');
+      requestAnimationFrame(tick);
+    }
+
+    window.addEventListener('mousemove', function (e) {
+      targetX = e.clientX;
+      targetY = e.clientY;
+      activate();
+      if (coordsEl) {
+        const x = Math.round(e.clientX * 2.4);
+        const y = Math.round(e.clientY * 2.4);
+        coordsEl.textContent = 'X ' + x + ' \u00B7 Y ' + y;
+      }
+      const overText = e.target.closest && e.target.closest(TEXT_FIELD);
+      const overClick = e.target.closest && e.target.closest(INTERACTIVE);
+      cursor.classList.toggle('is-text', !!overText);
+      cursor.classList.toggle('is-active', !!overClick && !overText);
+    }, { passive: true });
+
+    window.addEventListener('mousedown', () => cursor.classList.add('is-click'));
+    window.addEventListener('mouseup', () => cursor.classList.remove('is-click'));
+    window.addEventListener('mouseleave', () => { cursor.style.opacity = '0'; });
+    window.addEventListener('mouseenter', () => { cursor.style.opacity = ''; });
+
+    function tick() {
+      curX += (targetX - curX) * 0.22;
+      curY += (targetY - curY) * 0.22;
+      cursor.style.transform = 'translate(' + curX + 'px, ' + curY + 'px)';
+      requestAnimationFrame(tick);
+    }
+  }
+
+  // The cursor markup is appended near the end of <body>, after this
+  // script tag, so it may not exist in the DOM yet at parse time —
+  // wait for it if needed instead of silently no-oping.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
