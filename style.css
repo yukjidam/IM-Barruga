@@ -1317,6 +1317,7 @@ html.day-mode .status-collab { color: #7c3aed; }
 .cl-val a:hover { text-decoration: underline; }
 
 .contact-form {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -1372,6 +1373,88 @@ html.day-mode .status-collab { color: #7c3aed; }
   cursor: default;
   transform: none;
   box-shadow: none;
+}
+
+/* Rubber-stamp shown when the message sends successfully.
+   Styled like an engineering drawing-review stamp: teal
+   double border (the "reviewed" ring) with the approval
+   text in gold (matching the As-Built accent elsewhere). */
+.stamp-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 20;
+  opacity: 0;
+}
+.stamp-overlay.show {
+  animation: stamp-in 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15) forwards;
+}
+.stamp-overlay.hide {
+  animation: stamp-out 0.4s ease forwards;
+}
+.stamp-svg {
+  width: min(78%, 300px);
+  filter: drop-shadow(0 6px 18px rgba(0,0,0,0.35));
+}
+@keyframes stamp-in {
+  0%   { opacity: 0; transform: scale(2.6) rotate(-9deg); }
+  55%  { opacity: 1; transform: scale(0.92) rotate(-9deg); }
+  75%  { transform: scale(1.04) rotate(-9deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-9deg); }
+}
+@keyframes stamp-out {
+  from { opacity: 1; transform: scale(1) rotate(-9deg); }
+  to   { opacity: 0; transform: scale(0.95) rotate(-9deg); }
+}
+/* A quick jolt on the whole form at the moment of impact */
+.contact-form.stamp-hit { animation: stamp-shake 0.4s ease; }
+@keyframes stamp-shake {
+  0%, 100% { transform: translate(0, 0); }
+  20%      { transform: translate(-3px, 1px); }
+  40%      { transform: translate(3px, -1px); }
+  60%      { transform: translate(-2px, 1px); }
+  80%      { transform: translate(2px, 0); }
+}
+
+/* ── CUSTOM CURSOR ───────────────────────────────────
+   A surveyor's-transit reticle in place of the default
+   arrow — fits the civil-engineering theme. Two-tone
+   (dark + white) stroke keeps it visible over both the
+   dark and light (day-mode) backgrounds. A smaller
+   filled "snap point" cursor marks anything clickable. */
+html, body {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="8.5" fill="none" stroke="%230e1013" stroke-width="2.6"/><circle cx="14" cy="14" r="8.5" fill="none" stroke="white" stroke-width="1.1"/><line x1="14" y1="0.5" x2="14" y2="6.5" stroke="%230e1013" stroke-width="2.6"/><line x1="14" y1="0.5" x2="14" y2="6.5" stroke="white" stroke-width="1.1"/><line x1="14" y1="21.5" x2="14" y2="27.5" stroke="%230e1013" stroke-width="2.6"/><line x1="14" y1="21.5" x2="14" y2="27.5" stroke="white" stroke-width="1.1"/><line x1="0.5" y1="14" x2="6.5" y2="14" stroke="%230e1013" stroke-width="2.6"/><line x1="0.5" y1="14" x2="6.5" y2="14" stroke="white" stroke-width="1.1"/><line x1="21.5" y1="14" x2="27.5" y2="14" stroke="%230e1013" stroke-width="2.6"/><line x1="21.5" y1="14" x2="27.5" y2="14" stroke="white" stroke-width="1.1"/><circle cx="14" cy="14" r="1.6" fill="%234ab8c8"/></svg>') 14 14, default;
+}
+
+a,
+button,
+input[type="submit"],
+input[type="button"],
+.project-card,
+.cta-primary,
+.cta-secondary,
+.ce-toggle,
+.nav-toggle,
+.mass-nav-btn,
+.pdf-zoom-btn,
+.pdf-nav-btn,
+.pdf-modal-close,
+.submit-btn,
+[role="button"],
+[onclick] {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke="%230e1013" stroke-width="2.4"/><circle cx="12" cy="12" r="7" fill="none" stroke="white" stroke-width="1"/><circle cx="12" cy="12" r="4" fill="%23e8b44a"/></svg>') 12 12, pointer;
+}
+
+/* Native text-entry fields keep the ordinary text caret */
+input[type="text"],
+input[type="email"],
+textarea,
+.form-input,
+.form-textarea {
+  cursor: text;
 }
 
 .form-status {

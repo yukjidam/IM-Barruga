@@ -349,6 +349,32 @@ bars.forEach(b => barObs.observe(b));
   const messageEl = document.getElementById('cf-message');
   const statusEl  = document.getElementById('cf-status');
   const submitBtn = document.getElementById('cf-submit');
+  const stampEl   = document.getElementById('stamp-overlay');
+
+  let stampHideTimer = null;
+
+  function showApprovedStamp() {
+    if (!stampEl) return;
+    clearTimeout(stampHideTimer);
+    stampEl.classList.remove('hide');
+    // force reflow so the animation restarts if triggered again
+    void stampEl.offsetWidth;
+    stampEl.classList.add('show');
+    form.classList.remove('stamp-hit');
+    void form.offsetWidth;
+    form.classList.add('stamp-hit');
+    stampHideTimer = setTimeout(() => {
+      stampEl.classList.remove('show');
+      stampEl.classList.add('hide');
+    }, 2600);
+  }
+
+  function hideApprovedStamp() {
+    if (!stampEl) return;
+    clearTimeout(stampHideTimer);
+    stampEl.classList.remove('show');
+    stampEl.classList.add('hide');
+  }
 
   if (typeof emailjs !== 'undefined') {
     emailjs.init({ publicKey: EMAILJS_CONFIG.publicKey });
@@ -411,6 +437,7 @@ bars.forEach(b => barObs.observe(b));
       setStatus('Message sent! I\'ll get back to you within a day.', 'status-ok');
       form.reset();
       submitBtn.disabled = false;
+      showApprovedStamp();
     }).catch(err => {
       console.error('EmailJS send error:', err);
       console.error('EmailJS error status:', err && err.status);
@@ -423,6 +450,11 @@ bars.forEach(b => barObs.observe(b));
   // Clear the error state as soon as the visitor starts fixing a field
   [nameEl, emailEl, messageEl].forEach(el => {
     el.addEventListener('input', () => markField(el, true));
+  });
+
+  // Dismiss the approval stamp once they start composing a new message
+  [nameEl, emailEl, purposeEl, messageEl].forEach(el => {
+    el.addEventListener('input', hideApprovedStamp);
   });
 })();
 

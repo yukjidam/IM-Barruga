@@ -881,6 +881,18 @@
       </div>
       <div class="form-status" id="cf-status" aria-live="polite"></div>
       <button type="submit" class="submit-btn" id="cf-submit">Send Message →</button>
+
+      <!-- Rubber-stamp shown on successful send -->
+      <div class="stamp-overlay" id="stamp-overlay" aria-hidden="true">
+        <svg class="stamp-svg" viewBox="0 0 260 130" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6" y="6" width="248" height="118" rx="4" fill="none" stroke="var(--teal)" stroke-width="4"/>
+          <rect x="15" y="15" width="230" height="100" rx="2" fill="none" stroke="var(--teal)" stroke-width="1.5"/>
+          <text x="130" y="53" text-anchor="middle" font-family="var(--f-mono)" font-size="23" font-weight="700" fill="var(--gold)" letter-spacing="4">APPROVED</text>
+          <text x="130" y="76" text-anchor="middle" font-family="var(--f-mono)" font-size="10.5" fill="var(--gold)" letter-spacing="3">FOR CONSTRUCTION</text>
+          <line x1="30" y1="90" x2="230" y2="90" stroke="var(--teal)" stroke-width="1" opacity="0.6"/>
+          <text x="130" y="106" text-anchor="middle" font-family="var(--f-mono)" font-size="9" fill="var(--teal)" letter-spacing="2">I. BARRUGA · CE STUDENT</text>
+        </svg>
+      </div>
     </form>
   </div>
 </section>
