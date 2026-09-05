@@ -1012,6 +1012,14 @@ bars.forEach(b => barObs.observe(b));
   const MOUSE_DIST         = 170;   // px, cursor "pull" radius
   const DRIFT_SPEED        = 0.11;  // px/frame, constant — never accelerates
   const DEPTH_PERIOD_MS    = 9000;  // ms for one full "facing → away → facing" cycle
+  const LINK_FADE_RATE     = 0.045; // how quickly a link eases toward its on/off target each frame
+
+  // Persistent "how strong is this link right now" state, keyed by
+  // "i-j" particle-index pair. This is what makes a link crossfade in
+  // and out over ~a third of a second as neighbors change, instead of
+  // snapping instantly to full or zero the moment the nearest-neighbor
+  // set is recomputed.
+  let linkState = new Map();
 
   const prefersReducedMotion =
     window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1024,6 +1032,7 @@ bars.forEach(b => barObs.observe(b));
   function buildParticles() {
     const n = particleCount();
     particles = [];
+    linkState = new Map();
     for (let i = 0; i < n; i++) {
       const speed = prefersReducedMotion ? 0 : DRIFT_SPEED;
       const angle = Math.random() * Math.PI * 2;
@@ -1095,8 +1104,8 @@ bars.forEach(b => barObs.observe(b));
       // each node links only to its handful of nearest neighbors — this
       // is what keeps the network reading as loose constellations/clusters
       // rather than a dense mesh covering the whole screen
-      ctx.lineWidth = 1;
-      const linkedPairs = new Map(); // "i-j" (i<j) -> distance, deduped
+      ctx.lineWidth = 1.5;
+      const targetPairs = new Map(); // "i-j" (i<j) -> current distance, this frame's desired links
       for (let i = 0; i < particles.length; i++) {
         const a = particles[i];
         const candidates = [];
@@ -1111,19 +1120,35 @@ bars.forEach(b => barObs.observe(b));
         for (let k = 0; k < Math.min(MAX_LINKS_PER_NODE, candidates.length); k++) {
           const [j, dist] = candidates[k];
           const key = i < j ? i + '-' + j : j + '-' + i;
-          if (!linkedPairs.has(key)) linkedPairs.set(key, dist);
+          if (!targetPairs.has(key)) targetPairs.set(key, dist);
         }
       }
-      for (const [key, dist] of linkedPairs) {
+
+      // union of pairs currently fading in, holding steady, or fading
+      // out — ease each one's strength toward 1 (wants to be linked)
+      // or 0 (no longer a neighbor) rather than snapping
+      const allKeys = new Set([...linkState.keys(), ...targetPairs.keys()]);
+      for (const key of allKeys) {
+        const cur = linkState.get(key) || 0;
+        const target = targetPairs.has(key) ? 1 : 0;
+        const next = cur + (target - cur) * LINK_FADE_RATE;
+        if (next < 0.01 && target === 0) {
+          linkState.delete(key); // fully faded out — stop tracking it
+        } else {
+          linkState.set(key, next);
+        }
+      }
+
+      for (const [key, strength] of linkState) {
         const [i, j] = key.split('-').map(Number);
         const a = particles[i], b = particles[j];
-        const proximity = 1 - dist / LINK_SEARCH_DIST;
-        // average depth of the two endpoints decides how "toward the
-        // viewer" this link currently is — eased so the swing between
-        // faint and full color is a glide, not a linear ramp
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const proximity = Math.max(0, 1 - dist / LINK_SEARCH_DIST);
         const facing = (a.depth + b.depth) / 2;
         const eased = facing * facing * (3 - 2 * facing); // smoothstep
-        const alpha = proximity * (0.05 + eased * 0.28);
+        const alpha = strength * proximity * (0.16 + eased * 0.5);
+        if (alpha < 0.003) continue;
         ctx.strokeStyle = `rgba(${teal.r},${teal.g},${teal.b},${alpha})`;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
