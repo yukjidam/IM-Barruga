@@ -24,14 +24,12 @@
 </head>
 <body>
 
-<!-- Interactive drafting background — ortho/crosshair guide lines
-     sweep with the cursor across a full-viewport canvas, a ruler
-     of tick marks runs along the top and left edges with a marker
-     tracking the cursor's position, and the nearest points on the
-     underlying site grid "snap" awake as the guides cross them —
-     the whole thing reads like a live CAD viewport sitting behind
-     the page. -->
-<canvas id="bg-drafting" aria-hidden="true"></canvas>
+<!-- Interactive particle background — a full-viewport canvas of drifting
+     nodes in the site's teal/gold palette. Nearby nodes link up with
+     faint lines (denser the closer they are), and the cursor "grabs"
+     any node within range: those nodes glow gold and draw a live link
+     back to the pointer, like the classic particles.js hover effect. -->
+<canvas id="bg-particles" aria-hidden="true"></canvas>
 
 <!-- ══════════════════════════════════════════════
      INTRO ANIMATION: Blank grid → Floor plan → Pan to hero

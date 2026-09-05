@@ -973,39 +973,58 @@ bars.forEach(b => barObs.observe(b));
   }
 })();
 /* ══════════════════════════════════════════════════
-   LIVE CAD VIEWPORT BACKGROUND
-   Turns the whole page into a drafting sheet that reacts to the
-   cursor like a CAD program's viewport:
-     • Dashed ortho/crosshair guide lines sweep to follow the
-       pointer, full-bleed across the screen (AutoCAD-style
-       alignment guides).
-     • Tick-mark rulers run along the top and left edges, each with
-       a small gold marker that slides along to track the cursor's
-       X / Y position.
-     • A coarse lattice of snap points sits underneath; any point
-       the guides sweep across "wakes up" — glowing gold, like a
-       CAD program highlighting the nearest snap.
-   Everything is idle and invisible until the cursor is on the page,
-   then it re-centers on it in real time. Fixed to the viewport so
-   it reads as one continuous sheet while the page scrolls.
+   INTERACTIVE PARTICLE NETWORK BACKGROUND
+   A field of drifting nodes, each linked to its nearby neighbors by
+   a faint line — the classic "particles" background (à la
+   particles.js), reworked in the site's own teal/gold palette:
+     • Nodes wander the full viewport at a slow, constant drift and
+       bounce softly off the edges.
+     • Any two nodes within linking range are joined by a thin line
+       whose opacity fades with distance, so the network thickens
+       and thins as nodes pass near one another.
+     • The cursor acts as a magnet: nodes within its pull radius glow
+       gold, grow slightly, and draw a live link back to the pointer
+       — like a person grabbing a handful of threads.
+   Fixed to the viewport so it reads as one continuous layer while
+   the page scrolls, and re-reads the teal/gold theme colors whenever
+   Blueprint ⇄ As-Built mode is toggled.
    ══════════════════════════════════════════════════ */
 (function () {
-  const canvas = document.getElementById('bg-drafting');
+  const canvas = document.getElementById('bg-particles');
   if (!canvas || !canvas.getContext) return;
   const ctx = canvas.getContext('2d');
   const root = document.documentElement;
 
   let W = 0, H = 0, DPR = 1;
-  let nodes = [];
+  let particles = [];
 
-  const SPACING = 120; // snap-grid node spacing, px
+  const MAX_PARTICLES = 130;   // hard cap regardless of screen size
+  const AREA_PER_NODE = 13000; // px² per node — density target
+  const LINK_DIST     = 140;   // px, beyond this two nodes don't link
+  const MOUSE_DIST    = 170;   // px, cursor "pull" radius
+  const DRIFT_SPEED   = 0.28;  // px/frame, base wander speed
 
-  function buildGrid() {
-    nodes = [];
-    const cols = Math.ceil(W / SPACING) + 1;
-    const rows = Math.ceil(H / SPACING) + 1;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) nodes.push({ x: c * SPACING, y: r * SPACING });
+  const prefersReducedMotion =
+    window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function particleCount() {
+    const target = Math.round((W * H) / AREA_PER_NODE);
+    return Math.min(MAX_PARTICLES, Math.max(36, target));
+  }
+
+  function buildParticles() {
+    const n = particleCount();
+    particles = [];
+    for (let i = 0; i < n; i++) {
+      const speed = prefersReducedMotion ? 0 : DRIFT_SPEED;
+      const angle = Math.random() * Math.PI * 2;
+      particles.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: Math.cos(angle) * speed * (0.4 + Math.random() * 0.8),
+        vy: Math.sin(angle) * speed * (0.4 + Math.random() * 0.8),
+        r: 1.3 + Math.random() * 1.5
+      });
     }
   }
 
@@ -1016,7 +1035,7 @@ bars.forEach(b => barObs.observe(b));
     canvas.width = Math.round(W * DPR);
     canvas.height = Math.round(H * DPR);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    buildGrid();
+    buildParticles();
   }
 
   let teal = { r: 74, g: 184, b: 200 };
@@ -1031,84 +1050,78 @@ bars.forEach(b => barObs.observe(b));
     gold = hexToRgb(cs.getPropertyValue('--gold')) || gold;
   }
 
-  let mouseX = 0, mouseY = 0, curX = 0, curY = 0;
-  let active = 0, targetActive = 0;
-  let primed = false;
-
-  function onMove(x, y) {
-    mouseX = x; mouseY = y; targetActive = 1;
-    if (!primed) { curX = x; curY = y; primed = true; }
-  }
+  let mouseX = -9999, mouseY = -9999, hasMouse = false;
+  function onMove(x, y) { mouseX = x; mouseY = y; hasMouse = true; }
   window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY), { passive: true });
   window.addEventListener('touchmove', (e) => {
     if (e.touches && e.touches[0]) onMove(e.touches[0].clientX, e.touches[0].clientY);
   }, { passive: true });
-  window.addEventListener('mouseleave', () => { targetActive = 0; });
-  window.addEventListener('touchend', () => { targetActive = 0; });
+  window.addEventListener('mouseleave', () => { hasMouse = false; });
+  window.addEventListener('touchend', () => { hasMouse = false; });
 
   function lerp(a, b, k) { return a + (b - a) * k; }
-
-  const TICK_MINOR = 20;  // px between minor ruler ticks
-  const TICK_MAJOR = 100; // px between major ruler ticks
-  const SNAP_BAND = 24;   // how close a snap node needs to be to a guide line to light up
 
   let running = true;
 
   function frame() {
     if (!running) return;
-    active = lerp(active, targetActive, 0.08);
-    curX = lerp(curX, mouseX, 0.35);
-    curY = lerp(curY, mouseY, 0.35);
-
     ctx.clearRect(0, 0, W, H);
 
-    if (active > 0.01) {
-      // ortho / crosshair guides
-      ctx.setLineDash([5, 5]);
-      ctx.strokeStyle = `rgba(${teal.r},${teal.g},${teal.b},${0.16 * active})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(0, curY); ctx.lineTo(W, curY);
-      ctx.moveTo(curX, 0); ctx.lineTo(curX, H);
-      ctx.stroke();
-      ctx.setLineDash([]);
+    // drift + bounce off edges
+    for (const p of particles) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x <= 0 || p.x >= W) { p.vx *= -1; p.x = Math.max(0, Math.min(W, p.x)); }
+      if (p.y <= 0 || p.y >= H) { p.vy *= -1; p.y = Math.max(0, Math.min(H, p.y)); }
+    }
 
-      // snap-grid nodes waking up where the guides sweep past them
-      for (const n of nodes) {
-        const d = Math.min(Math.abs(n.x - curX), Math.abs(n.y - curY));
-        const k = Math.max(0, 1 - d / SNAP_BAND) * active;
-        if (k < 0.03) continue;
-        const cr = Math.round(lerp(teal.r, gold.r, k));
-        const cg = Math.round(lerp(teal.g, gold.g, k));
-        const cb = Math.round(lerp(teal.b, gold.b, k));
+    // node-to-node links, fading with distance
+    ctx.lineWidth = 1;
+    for (let i = 0; i < particles.length; i++) {
+      const a = particles[i];
+      for (let j = i + 1; j < particles.length; j++) {
+        const b = particles[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist >= LINK_DIST) continue;
+        const alpha = (1 - dist / LINK_DIST) * 0.22;
+        ctx.strokeStyle = `rgba(${teal.r},${teal.g},${teal.b},${alpha})`;
         ctx.beginPath();
-        ctx.fillStyle = `rgba(${cr},${cg},${cb},${0.25 + k * 0.65})`;
-        ctx.arc(n.x, n.y, 1.3 + k * 2.2, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
       }
+    }
 
-      // ruler ticks along the top and left edges
-      ctx.strokeStyle = `rgba(${teal.r},${teal.g},${teal.b},${0.4 * active})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let x = 0; x < W; x += TICK_MINOR) {
-        const len = (x % TICK_MAJOR === 0) ? 9 : 5;
-        ctx.moveTo(x, 0); ctx.lineTo(x, len);
+    // cursor "pull" — live gold links from nearby nodes back to the pointer
+    if (hasMouse) {
+      for (const p of particles) {
+        const dx = p.x - mouseX, dy = p.y - mouseY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist >= MOUSE_DIST) continue;
+        const k = 1 - dist / MOUSE_DIST;
+        ctx.strokeStyle = `rgba(${gold.r},${gold.g},${gold.b},${k * 0.5})`;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(mouseX, mouseY);
+        ctx.stroke();
       }
-      for (let y = 0; y < H; y += TICK_MINOR) {
-        const len = (y % TICK_MAJOR === 0) ? 9 : 5;
-        ctx.moveTo(0, y); ctx.lineTo(len, y);
-      }
-      ctx.stroke();
+    }
 
-      // position markers sliding along each ruler
-      ctx.fillStyle = `rgba(${gold.r},${gold.g},${gold.b},${0.9 * active})`;
+    // nodes on top, glowing gold the closer they are to the cursor
+    for (const p of particles) {
+      let glow = 0;
+      if (hasMouse) {
+        const dx = p.x - mouseX, dy = p.y - mouseY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        glow = Math.max(0, 1 - dist / MOUSE_DIST);
+      }
+      const cr = Math.round(lerp(teal.r, gold.r, glow));
+      const cg = Math.round(lerp(teal.g, gold.g, glow));
+      const cb = Math.round(lerp(teal.b, gold.b, glow));
       ctx.beginPath();
-      ctx.moveTo(curX - 5, 0); ctx.lineTo(curX + 5, 0); ctx.lineTo(curX, 8);
-      ctx.closePath(); ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(0, curY - 5); ctx.lineTo(0, curY + 5); ctx.lineTo(8, curY);
-      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${0.55 + glow * 0.4})`;
+      ctx.arc(p.x, p.y, p.r + glow * 1.6, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     requestAnimationFrame(frame);

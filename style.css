@@ -52,7 +52,7 @@ html.day-mode .cursor-glow { opacity: 0.28; }
 
 /* Sitewide drafting grid — faint cyan gridlines on the blueprint
    background; a subtle structural gray grid once "built". Sits
-   behind all content (and behind #bg-drafting) via negative z-index. */
+   behind all content (and behind #bg-particles) via negative z-index. */
 body::before {
   content: '';
   position: fixed;
@@ -71,11 +71,10 @@ html.day-mode body::before {
     linear-gradient(90deg, rgba(28,32,28,0.045) 1px, transparent 1px);
 }
 
-/* Interactive CAD-viewport canvas — ortho guides, ruler ticks and
-   snap-grid glow, all driven by the live cursor position. Fixed to
-   the viewport so it reads as one continuous "drawing sheet" while
-   the page scrolls. */
-#bg-drafting {
+/* Interactive particle-network canvas — drifting nodes linked by
+   faint lines, glowing gold near the cursor. Fixed to the viewport
+   so it reads as one continuous layer while the page scrolls. */
+#bg-particles {
   position: fixed;
   inset: 0;
   z-index: -1;
