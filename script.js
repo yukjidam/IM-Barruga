@@ -917,6 +917,10 @@ bars.forEach(b => barObs.observe(b));
     const cursor = document.getElementById('ce-cursor');
     if (!cursor) return;
     if (!window.matchMedia('(pointer: fine)').matches) return;
+    // Backstop for preview/testing environments that report a fine
+    // pointer even at phone widths — the fancy cursor only makes
+    // sense once the nav has room to be a full desktop bar.
+    if (window.innerWidth <= 768) return;
 
     const coordsEl = document.getElementById('ce-cursor-coords');
     const root = document.documentElement;
@@ -977,11 +981,17 @@ bars.forEach(b => barObs.observe(b));
    A field of drifting nodes, invisible themselves, revealed only by
    the faint lines linking each one to its nearest few neighbors —
    a loose constellation rather than a dense mesh. Reworked in the
-   site's own teal/gold palette:
+   site's own teal/gold palette, with two civil-engineering-flavored
+   touches layered on:
      • Nodes wander the full viewport at a slow, constant drift and
        bounce softly off the edges. Speed never compounds — there is
        exactly one animation loop, so the field can't creep faster
        the longer the tab stays open.
+     • Each node links to its nearest neighbor in each of several
+       compass directions around it (rather than just its nearest
+       few by distance), so links spread out and close into
+       triangles — the same triangulation that makes a structural
+       truss rigid — instead of drifting into thin parallel chains.
      • Each node carries its own slow, silent "depth" oscillation
        (a sine wave on a long, randomized cycle) standing in for a
        faint 3D rotation. A link's brightness follows the average
@@ -989,6 +999,9 @@ bars.forEach(b => barObs.observe(b));
        viewer" ease up to full color, lines whose nodes are "rotating
        away" ease down to a faint trace — a smooth glide, never a
        sudden pop.
+     • Every few seconds, a small bright pulse travels along one
+       currently-strong link from one end to the other — a load
+       finding its way through a truss member — then fades.
      • The cursor acts as a magnet: nearby nodes draw a live gold
        link back to the pointer, at full brightness regardless of
        depth, so the interactive affordance always reads clearly.
@@ -1008,11 +1021,14 @@ bars.forEach(b => barObs.observe(b));
   const MAX_PARTICLES      = 90;    // hard cap regardless of screen size
   const AREA_PER_NODE      = 17000; // px² per node — density target
   const LINK_SEARCH_DIST   = 210;   // px, radius searched for possible neighbors
-  const MAX_LINKS_PER_NODE = 3;     // each node links only to its nearest few — a constellation, not a mesh
+  const LINK_SECTORS       = 4;     // compass directions searched per node — spreads links so they triangulate
   const MOUSE_DIST         = 170;   // px, cursor "pull" radius
   const DRIFT_SPEED        = 0.11;  // px/frame, constant — never accelerates
   const DEPTH_PERIOD_MS    = 9000;  // ms for one full "facing → away → facing" cycle
   const LINK_FADE_RATE     = 0.045; // how quickly a link eases toward its on/off target each frame
+  const PULSE_MIN_STRENGTH = 0.55;  // a link must be at least this solid to be picked for a pulse
+  const PULSE_DURATION_MS  = 1200;  // how long one pulse takes to travel its link
+  const PULSE_GAP_MS       = [2200, 4200]; // random pause range before the next pulse starts
 
   // Persistent "how strong is this link right now" state, keyed by
   // "i-j" particle-index pair. This is what makes a link crossfade in
@@ -1020,6 +1036,10 @@ bars.forEach(b => barObs.observe(b));
   // snapping instantly to full or zero the moment the nearest-neighbor
   // set is recomputed.
   let linkState = new Map();
+
+  // The single traveling "load" pulse, or null when none is active.
+  let pulse = null;
+  let nextPulseAt = 0;
 
   const prefersReducedMotion =
     window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1033,6 +1053,8 @@ bars.forEach(b => barObs.observe(b));
     const n = particleCount();
     particles = [];
     linkState = new Map();
+    pulse = null;
+    nextPulseAt = 0;
     for (let i = 0; i < n; i++) {
       const speed = prefersReducedMotion ? 0 : DRIFT_SPEED;
       const angle = Math.random() * Math.PI * 2;
@@ -1049,14 +1071,39 @@ bars.forEach(b => barObs.observe(b));
     }
   }
 
+  let lastW = 0, lastH = 0;
+
   function resize() {
-    W = window.innerWidth;
-    H = window.innerHeight;
+    const newW = window.innerWidth;
+    const newH = window.innerHeight;
     DPR = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(W * DPR);
-    canvas.height = Math.round(H * DPR);
+    canvas.width = Math.round(newW * DPR);
+    canvas.height = Math.round(newH * DPR);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    buildParticles();
+
+    // Mobile browsers fire 'resize' when the URL bar collapses or
+    // reappears during scrolling — that only changes innerHeight by
+    // ~50-100px, not the width. Rebuilding the whole particle field
+    // on every one of those made the network visibly "reset" while
+    // scrolling. Only a genuine width change (resize/orientation) or
+    // a large height change earns a full rebuild; anything smaller
+    // just resizes the canvas and clamps existing particles into the
+    // new bounds, so the field keeps drifting undisturbed.
+    const widthChanged = Math.abs(newW - lastW) > 1;
+    const heightChangedALot = Math.abs(newH - lastH) > 150;
+
+    W = newW; H = newH;
+
+    if (!particles.length || widthChanged || heightChangedALot) {
+      buildParticles();
+    } else {
+      for (const p of particles) {
+        p.x = Math.min(p.x, W);
+        p.y = Math.min(p.y, H);
+      }
+    }
+
+    lastW = newW; lastH = newH;
   }
 
   let teal = { r: 74, g: 184, b: 200 };
@@ -1101,24 +1148,31 @@ bars.forEach(b => barObs.observe(b));
         p.depth = (Math.sin(now * p.depthSpeed + p.depthPhase) + 1) / 2;
       }
 
-      // each node links only to its handful of nearest neighbors — this
-      // is what keeps the network reading as loose constellations/clusters
-      // rather than a dense mesh covering the whole screen
+      // each node links to its nearest neighbor in each of several
+      // compass sectors around it, rather than just its nearest few
+      // by distance overall — this is what makes triangles close up
+      // between neighboring nodes instead of the network drifting
+      // into thin parallel chains, echoing how a real truss triangulates
       ctx.lineWidth = 1.5;
       const targetPairs = new Map(); // "i-j" (i<j) -> current distance, this frame's desired links
+      const sectorSize = (Math.PI * 2) / LINK_SECTORS;
       for (let i = 0; i < particles.length; i++) {
         const a = particles[i];
-        const candidates = [];
+        const bestBySector = new Array(LINK_SECTORS).fill(null); // [j, dist] nearest candidate per sector
         for (let j = 0; j < particles.length; j++) {
           if (j === i) continue;
           const b = particles[j];
-          const dx = a.x - b.x, dy = a.y - b.y;
+          const dx = b.x - a.x, dy = b.y - a.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < LINK_SEARCH_DIST) candidates.push([j, dist]);
+          if (dist >= LINK_SEARCH_DIST) continue;
+          const angle = Math.atan2(dy, dx) + Math.PI; // 0..2π
+          const sector = Math.min(LINK_SECTORS - 1, Math.floor(angle / sectorSize));
+          const current = bestBySector[sector];
+          if (!current || dist < current[1]) bestBySector[sector] = [j, dist];
         }
-        candidates.sort((p, q) => p[1] - q[1]);
-        for (let k = 0; k < Math.min(MAX_LINKS_PER_NODE, candidates.length); k++) {
-          const [j, dist] = candidates[k];
+        for (const cand of bestBySector) {
+          if (!cand) continue;
+          const [j, dist] = cand;
           const key = i < j ? i + '-' + j : j + '-' + i;
           if (!targetPairs.has(key)) targetPairs.set(key, dist);
         }
@@ -1154,6 +1208,41 @@ bars.forEach(b => barObs.observe(b));
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
         ctx.stroke();
+      }
+
+      // load pulse — a small bright dot traveling one currently-solid
+      // link end to end, like a force finding its path through a truss
+      if (!pulse && now >= nextPulseAt) {
+        const strong = [];
+        for (const [key, strength] of linkState) {
+          if (strength >= PULSE_MIN_STRENGTH) strong.push(key);
+        }
+        if (strong.length) {
+          const key = strong[Math.floor(Math.random() * strong.length)];
+          const [i, j] = key.split('-').map(Number);
+          const [from, to] = Math.random() < 0.5 ? [i, j] : [j, i];
+          pulse = { from, to, start: now };
+        } else {
+          nextPulseAt = now + 400; // nothing solid enough yet — check again shortly
+        }
+      }
+      if (pulse) {
+        const a = particles[pulse.from], b = particles[pulse.to];
+        const t = (now - pulse.start) / PULSE_DURATION_MS;
+        if (!a || !b || t >= 1) {
+          pulse = null;
+          const [gapMin, gapMax] = PULSE_GAP_MS;
+          nextPulseAt = now + gapMin + Math.random() * (gapMax - gapMin);
+        } else {
+          const eased = t * t * (3 - 2 * t); // smoothstep along the travel
+          const px = a.x + (b.x - a.x) * eased;
+          const py = a.y + (b.y - a.y) * eased;
+          const fade = Math.sin(Math.PI * t); // eases in, peaks mid-travel, eases out
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(${gold.r},${gold.g},${gold.b},${0.85 * fade})`;
+          ctx.arc(px, py, 2 + fade * 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
 
       // cursor "pull" — live gold links from nearby nodes back to the

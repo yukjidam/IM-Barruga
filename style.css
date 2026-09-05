@@ -291,6 +291,7 @@ nav {
 }
 
 .nav-logo {
+  grid-column: 1;
   font-family: var(--f-mono);
   font-size: 11px;
   letter-spacing: 3px;
@@ -300,6 +301,7 @@ nav {
 }
 
 .nav-links {
+  grid-column: 2;
   display: flex;
   gap: 36px;
   list-style: none;
@@ -329,6 +331,7 @@ nav {
 .nav-links a:hover::after { width: 100%; }
 
 .nav-right {
+  grid-column: 3;
   display: flex;
   align-items: center;
   gap: 24px;
@@ -1527,6 +1530,16 @@ html.ce-cursor-active .ce-cursor { opacity: 1; }
 
 @media (pointer: coarse) {
   .ce-cursor { display: none; }
+}
+
+/* Some mobile preview/testing environments still report a fine
+   pointer at narrow widths, which let the desktop-only CAD cursor
+   slip through and sit at a stale position over the collapsed nav's
+   toggle + hamburger button. This is a hard backstop: below the nav
+   collapse breakpoint, the cursor overlay never renders, regardless
+   of what pointer type the browser reports. */
+@media (max-width: 768px) {
+  .ce-cursor { display: none !important; }
 }
 
 .form-status {
