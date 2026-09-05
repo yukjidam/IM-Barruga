@@ -1402,29 +1402,43 @@ footer .gold { color: var(--gold); }
 
 /* ── DESIGN PROCESS SECTION ──────────────────────── */
 .process-section { background: var(--bg); }
-.process-section .sec-title { color: var(--heading); }
-html.day-mode .process-section .sec-title { color: var(--heading) !important; }
 
 .process-steps {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
+}
+
+/* The connecting rail, run behind every step's number column.
+   Colored teal → gold to echo the Blueprint → As-Built idea
+   used elsewhere on the site (e.g. the theme toggle). */
+.process-steps::before {
+  content: '';
+  position: absolute;
+  top: 40px;
+  bottom: 40px;
+  left: 72px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--teal), var(--gold));
+  opacity: 0.35;
+  z-index: 0;
 }
 
 .process-step {
+  position: relative;
   display: grid;
   grid-template-columns: 80px 1fr;
   gap: 28px;
   align-items: start;
-  background: var(--surface);
-  padding: 28px 32px;
-  transition: background 0.3s;
+  padding: 28px 0;
+  border-top: 1px solid var(--border);
+  z-index: 1;
 }
-.process-step:hover { background: var(--surface2); }
+.process-step:first-child { border-top: none; padding-top: 8px; }
+.process-step:last-child { padding-bottom: 8px; }
 
 .process-num {
+  position: relative;
   font-family: var(--f-mono);
   font-size: 28px;
   font-weight: 600;
@@ -1432,7 +1446,25 @@ html.day-mode .process-section .sec-title { color: var(--heading) !important; }
   opacity: 0.55;
   letter-spacing: 1px;
   line-height: 1;
+  transition: opacity 0.25s ease;
 }
+/* The node marking this step on the rail */
+.process-num::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--gold);
+  z-index: 2;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+.process-step:hover .process-num { opacity: 1; }
+.process-step:hover .process-num::after { border-color: var(--teal); }
 
 .process-title {
   font-family: var(--f-display);
@@ -1440,7 +1472,9 @@ html.day-mode .process-section .sec-title { color: var(--heading) !important; }
   font-weight: 600;
   color: var(--heading);
   margin-bottom: 8px;
+  transition: color 0.25s ease;
 }
+.process-step:hover .process-title { color: var(--gold); }
 
 .process-desc {
   font-size: 13px;
@@ -1450,8 +1484,9 @@ html.day-mode .process-section .sec-title { color: var(--heading) !important; }
 }
 
 @media (max-width: 640px) {
-  .process-step { grid-template-columns: 1fr; gap: 8px; padding: 22px 24px; }
-  .process-num { font-size: 20px; }
+  .process-steps::before { left: 46px; }
+  .process-step { grid-template-columns: 54px 1fr; gap: 16px; padding: 20px 0; }
+  .process-num { font-size: 18px; }
 }
 
 /* ── PROJECT CARD CLICKABLE ──────────────────────── */
