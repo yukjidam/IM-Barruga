@@ -974,17 +974,24 @@ bars.forEach(b => barObs.observe(b));
 })();
 /* ══════════════════════════════════════════════════
    INTERACTIVE PARTICLE NETWORK BACKGROUND
-   A field of drifting nodes, each linked to its nearby neighbors by
-   a faint line — the classic "particles" background (à la
-   particles.js), reworked in the site's own teal/gold palette:
+   A field of drifting nodes, invisible themselves, revealed only by
+   the faint lines linking each one to its nearest few neighbors —
+   a loose constellation rather than a dense mesh. Reworked in the
+   site's own teal/gold palette:
      • Nodes wander the full viewport at a slow, constant drift and
-       bounce softly off the edges.
-     • Any two nodes within linking range are joined by a thin line
-       whose opacity fades with distance, so the network thickens
-       and thins as nodes pass near one another.
-     • The cursor acts as a magnet: nodes within its pull radius glow
-       gold, grow slightly, and draw a live link back to the pointer
-       — like a person grabbing a handful of threads.
+       bounce softly off the edges. Speed never compounds — there is
+       exactly one animation loop, so the field can't creep faster
+       the longer the tab stays open.
+     • Each node carries its own slow, silent "depth" oscillation
+       (a sine wave on a long, randomized cycle) standing in for a
+       faint 3D rotation. A link's brightness follows the average
+       depth of its two endpoints: lines whose nodes are "facing the
+       viewer" ease up to full color, lines whose nodes are "rotating
+       away" ease down to a faint trace — a smooth glide, never a
+       sudden pop.
+     • The cursor acts as a magnet: nearby nodes draw a live gold
+       link back to the pointer, at full brightness regardless of
+       depth, so the interactive affordance always reads clearly.
    Fixed to the viewport so it reads as one continuous layer while
    the page scrolls, and re-reads the teal/gold theme colors whenever
    Blueprint ⇄ As-Built mode is toggled.
@@ -998,11 +1005,13 @@ bars.forEach(b => barObs.observe(b));
   let W = 0, H = 0, DPR = 1;
   let particles = [];
 
-  const MAX_PARTICLES = 130;   // hard cap regardless of screen size
-  const AREA_PER_NODE = 13000; // px² per node — density target
-  const LINK_DIST     = 140;   // px, beyond this two nodes don't link
-  const MOUSE_DIST    = 170;   // px, cursor "pull" radius
-  const DRIFT_SPEED   = 0.28;  // px/frame, base wander speed
+  const MAX_PARTICLES      = 90;    // hard cap regardless of screen size
+  const AREA_PER_NODE      = 17000; // px² per node — density target
+  const LINK_SEARCH_DIST   = 210;   // px, radius searched for possible neighbors
+  const MAX_LINKS_PER_NODE = 3;     // each node links only to its nearest few — a constellation, not a mesh
+  const MOUSE_DIST         = 170;   // px, cursor "pull" radius
+  const DRIFT_SPEED        = 0.11;  // px/frame, constant — never accelerates
+  const DEPTH_PERIOD_MS    = 9000;  // ms for one full "facing → away → facing" cycle
 
   const prefersReducedMotion =
     window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1023,7 +1032,10 @@ bars.forEach(b => barObs.observe(b));
         y: Math.random() * H,
         vx: Math.cos(angle) * speed * (0.4 + Math.random() * 0.8),
         vy: Math.sin(angle) * speed * (0.4 + Math.random() * 0.8),
-        r: 1.3 + Math.random() * 1.5
+        // each node's own phase + slightly varied cycle length, so
+        // the "rotation" never looks synchronized or mechanical
+        depthPhase: Math.random() * Math.PI * 2,
+        depthSpeed: (2 * Math.PI / DEPTH_PERIOD_MS) * (0.75 + Math.random() * 0.5)
       });
     }
   }
@@ -1059,69 +1071,81 @@ bars.forEach(b => barObs.observe(b));
   window.addEventListener('mouseleave', () => { hasMouse = false; });
   window.addEventListener('touchend', () => { hasMouse = false; });
 
-  function lerp(a, b, k) { return a + (b - a) * k; }
-
+  // Exactly one persistent loop, started once at the bottom of this
+  // IIFE. `running` only gates the work done inside each tick — it
+  // never stops or restarts the requestAnimationFrame chain itself,
+  // so repeated tab-hide/show cycles can never stack extra loops on
+  // top of each other (which is what was making the drift speed
+  // creep upward the longer the page stayed open).
   let running = true;
 
-  function frame() {
-    if (!running) return;
-    ctx.clearRect(0, 0, W, H);
+  function frame(now) {
+    if (running) {
+      ctx.clearRect(0, 0, W, H);
 
-    // drift + bounce off edges
-    for (const p of particles) {
-      p.x += p.vx; p.y += p.vy;
-      if (p.x <= 0 || p.x >= W) { p.vx *= -1; p.x = Math.max(0, Math.min(W, p.x)); }
-      if (p.y <= 0 || p.y >= H) { p.vy *= -1; p.y = Math.max(0, Math.min(H, p.y)); }
-    }
+      // drift + bounce off edges
+      for (const p of particles) {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x <= 0 || p.x >= W) { p.vx *= -1; p.x = Math.max(0, Math.min(W, p.x)); }
+        if (p.y <= 0 || p.y >= H) { p.vy *= -1; p.y = Math.max(0, Math.min(H, p.y)); }
+        // smooth 0..1 "facing the viewer" value, drifting on its own clock
+        p.depth = (Math.sin(now * p.depthSpeed + p.depthPhase) + 1) / 2;
+      }
 
-    // node-to-node links, fading with distance
-    ctx.lineWidth = 1;
-    for (let i = 0; i < particles.length; i++) {
-      const a = particles[i];
-      for (let j = i + 1; j < particles.length; j++) {
-        const b = particles[j];
-        const dx = a.x - b.x, dy = a.y - b.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist >= LINK_DIST) continue;
-        const alpha = (1 - dist / LINK_DIST) * 0.22;
+      // each node links only to its handful of nearest neighbors — this
+      // is what keeps the network reading as loose constellations/clusters
+      // rather than a dense mesh covering the whole screen
+      ctx.lineWidth = 1;
+      const linkedPairs = new Map(); // "i-j" (i<j) -> distance, deduped
+      for (let i = 0; i < particles.length; i++) {
+        const a = particles[i];
+        const candidates = [];
+        for (let j = 0; j < particles.length; j++) {
+          if (j === i) continue;
+          const b = particles[j];
+          const dx = a.x - b.x, dy = a.y - b.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < LINK_SEARCH_DIST) candidates.push([j, dist]);
+        }
+        candidates.sort((p, q) => p[1] - q[1]);
+        for (let k = 0; k < Math.min(MAX_LINKS_PER_NODE, candidates.length); k++) {
+          const [j, dist] = candidates[k];
+          const key = i < j ? i + '-' + j : j + '-' + i;
+          if (!linkedPairs.has(key)) linkedPairs.set(key, dist);
+        }
+      }
+      for (const [key, dist] of linkedPairs) {
+        const [i, j] = key.split('-').map(Number);
+        const a = particles[i], b = particles[j];
+        const proximity = 1 - dist / LINK_SEARCH_DIST;
+        // average depth of the two endpoints decides how "toward the
+        // viewer" this link currently is — eased so the swing between
+        // faint and full color is a glide, not a linear ramp
+        const facing = (a.depth + b.depth) / 2;
+        const eased = facing * facing * (3 - 2 * facing); // smoothstep
+        const alpha = proximity * (0.05 + eased * 0.28);
         ctx.strokeStyle = `rgba(${teal.r},${teal.g},${teal.b},${alpha})`;
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
         ctx.stroke();
       }
-    }
 
-    // cursor "pull" — live gold links from nearby nodes back to the pointer
-    if (hasMouse) {
-      for (const p of particles) {
-        const dx = p.x - mouseX, dy = p.y - mouseY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist >= MOUSE_DIST) continue;
-        const k = 1 - dist / MOUSE_DIST;
-        ctx.strokeStyle = `rgba(${gold.r},${gold.g},${gold.b},${k * 0.5})`;
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(mouseX, mouseY);
-        ctx.stroke();
-      }
-    }
-
-    // nodes on top, glowing gold the closer they are to the cursor
-    for (const p of particles) {
-      let glow = 0;
+      // cursor "pull" — live gold links from nearby nodes back to the
+      // pointer, always at full brightness so the interaction stays clear
       if (hasMouse) {
-        const dx = p.x - mouseX, dy = p.y - mouseY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        glow = Math.max(0, 1 - dist / MOUSE_DIST);
+        for (const p of particles) {
+          const dx = p.x - mouseX, dy = p.y - mouseY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist >= MOUSE_DIST) continue;
+          const k = 1 - dist / MOUSE_DIST;
+          ctx.strokeStyle = `rgba(${gold.r},${gold.g},${gold.b},${k * 0.5})`;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(mouseX, mouseY);
+          ctx.stroke();
+        }
       }
-      const cr = Math.round(lerp(teal.r, gold.r, glow));
-      const cg = Math.round(lerp(teal.g, gold.g, glow));
-      const cb = Math.round(lerp(teal.b, gold.b, glow));
-      ctx.beginPath();
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},${0.55 + glow * 0.4})`;
-      ctx.arc(p.x, p.y, p.r + glow * 1.6, 0, Math.PI * 2);
-      ctx.fill();
     }
 
     requestAnimationFrame(frame);
@@ -1135,7 +1159,6 @@ bars.forEach(b => barObs.observe(b));
 
   document.addEventListener('visibilitychange', () => {
     running = !document.hidden;
-    if (running) requestAnimationFrame(frame);
   });
 
   // Re-read teal/gold whenever Blueprint ⇄ As-Built mode is toggled,
