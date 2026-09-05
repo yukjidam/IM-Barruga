@@ -24,6 +24,15 @@
 </head>
 <body>
 
+<!-- Interactive drafting background — ortho/crosshair guide lines
+     sweep with the cursor across a full-viewport canvas, a ruler
+     of tick marks runs along the top and left edges with a marker
+     tracking the cursor's position, and the nearest points on the
+     underlying site grid "snap" awake as the guides cross them —
+     the whole thing reads like a live CAD viewport sitting behind
+     the page. -->
+<canvas id="bg-drafting" aria-hidden="true"></canvas>
+
 <!-- ══════════════════════════════════════════════
      INTRO ANIMATION: Blank grid → Floor plan → Pan to hero
      ══════════════════════════════════════════════ -->

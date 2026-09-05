@@ -972,3 +972,164 @@ bars.forEach(b => barObs.observe(b));
     init();
   }
 })();
+/* ══════════════════════════════════════════════════
+   LIVE CAD VIEWPORT BACKGROUND
+   Turns the whole page into a drafting sheet that reacts to the
+   cursor like a CAD program's viewport:
+     • Dashed ortho/crosshair guide lines sweep to follow the
+       pointer, full-bleed across the screen (AutoCAD-style
+       alignment guides).
+     • Tick-mark rulers run along the top and left edges, each with
+       a small gold marker that slides along to track the cursor's
+       X / Y position.
+     • A coarse lattice of snap points sits underneath; any point
+       the guides sweep across "wakes up" — glowing gold, like a
+       CAD program highlighting the nearest snap.
+   Everything is idle and invisible until the cursor is on the page,
+   then it re-centers on it in real time. Fixed to the viewport so
+   it reads as one continuous sheet while the page scrolls.
+   ══════════════════════════════════════════════════ */
+(function () {
+  const canvas = document.getElementById('bg-drafting');
+  if (!canvas || !canvas.getContext) return;
+  const ctx = canvas.getContext('2d');
+  const root = document.documentElement;
+
+  let W = 0, H = 0, DPR = 1;
+  let nodes = [];
+
+  const SPACING = 120; // snap-grid node spacing, px
+
+  function buildGrid() {
+    nodes = [];
+    const cols = Math.ceil(W / SPACING) + 1;
+    const rows = Math.ceil(H / SPACING) + 1;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) nodes.push({ x: c * SPACING, y: r * SPACING });
+    }
+  }
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    buildGrid();
+  }
+
+  let teal = { r: 74, g: 184, b: 200 };
+  let gold = { r: 232, g: 180, b: 74 };
+  function hexToRgb(hex) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex).trim());
+    return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : null;
+  }
+  function readColors() {
+    const cs = getComputedStyle(root);
+    teal = hexToRgb(cs.getPropertyValue('--teal')) || teal;
+    gold = hexToRgb(cs.getPropertyValue('--gold')) || gold;
+  }
+
+  let mouseX = 0, mouseY = 0, curX = 0, curY = 0;
+  let active = 0, targetActive = 0;
+  let primed = false;
+
+  function onMove(x, y) {
+    mouseX = x; mouseY = y; targetActive = 1;
+    if (!primed) { curX = x; curY = y; primed = true; }
+  }
+  window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY), { passive: true });
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches[0]) onMove(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  window.addEventListener('mouseleave', () => { targetActive = 0; });
+  window.addEventListener('touchend', () => { targetActive = 0; });
+
+  function lerp(a, b, k) { return a + (b - a) * k; }
+
+  const TICK_MINOR = 20;  // px between minor ruler ticks
+  const TICK_MAJOR = 100; // px between major ruler ticks
+  const SNAP_BAND = 24;   // how close a snap node needs to be to a guide line to light up
+
+  let running = true;
+
+  function frame() {
+    if (!running) return;
+    active = lerp(active, targetActive, 0.08);
+    curX = lerp(curX, mouseX, 0.35);
+    curY = lerp(curY, mouseY, 0.35);
+
+    ctx.clearRect(0, 0, W, H);
+
+    if (active > 0.01) {
+      // ortho / crosshair guides
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = `rgba(${teal.r},${teal.g},${teal.b},${0.16 * active})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, curY); ctx.lineTo(W, curY);
+      ctx.moveTo(curX, 0); ctx.lineTo(curX, H);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // snap-grid nodes waking up where the guides sweep past them
+      for (const n of nodes) {
+        const d = Math.min(Math.abs(n.x - curX), Math.abs(n.y - curY));
+        const k = Math.max(0, 1 - d / SNAP_BAND) * active;
+        if (k < 0.03) continue;
+        const cr = Math.round(lerp(teal.r, gold.r, k));
+        const cg = Math.round(lerp(teal.g, gold.g, k));
+        const cb = Math.round(lerp(teal.b, gold.b, k));
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(${cr},${cg},${cb},${0.25 + k * 0.65})`;
+        ctx.arc(n.x, n.y, 1.3 + k * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // ruler ticks along the top and left edges
+      ctx.strokeStyle = `rgba(${teal.r},${teal.g},${teal.b},${0.4 * active})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = 0; x < W; x += TICK_MINOR) {
+        const len = (x % TICK_MAJOR === 0) ? 9 : 5;
+        ctx.moveTo(x, 0); ctx.lineTo(x, len);
+      }
+      for (let y = 0; y < H; y += TICK_MINOR) {
+        const len = (y % TICK_MAJOR === 0) ? 9 : 5;
+        ctx.moveTo(0, y); ctx.lineTo(len, y);
+      }
+      ctx.stroke();
+
+      // position markers sliding along each ruler
+      ctx.fillStyle = `rgba(${gold.r},${gold.g},${gold.b},${0.9 * active})`;
+      ctx.beginPath();
+      ctx.moveTo(curX - 5, 0); ctx.lineTo(curX + 5, 0); ctx.lineTo(curX, 8);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(0, curY - 5); ctx.lineTo(0, curY + 5); ctx.lineTo(8, curY);
+      ctx.closePath(); ctx.fill();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resize, 150);
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    running = !document.hidden;
+    if (running) requestAnimationFrame(frame);
+  });
+
+  // Re-read teal/gold whenever Blueprint ⇄ As-Built mode is toggled,
+  // since those custom properties change value on <html class>.
+  new MutationObserver(readColors).observe(root, { attributes: true, attributeFilter: ['class'] });
+
+  readColors();
+  resize();
+  requestAnimationFrame(frame);
+})();
