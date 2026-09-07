@@ -1,3 +1,20 @@
+/* ── SITE CONFIG ──────────────────────────────────
+   Change GITHUB_USERNAME here whenever the GitHub
+   handle changes — every link/label that references
+   it (currently just the footer credits) updates
+   automatically. */
+const SITE_CONFIG = {
+  GITHUB_USERNAME: 'yukjidam'
+};
+
+(function () {
+  const link = document.getElementById('footer-github-link');
+  if (!link) return;
+  const user = SITE_CONFIG.GITHUB_USERNAME;
+  link.href = `https://github.com/${user}`;
+  link.textContent = `github.com/${user}`;
+})();
+
 /* "Blueprint → As-Built" toggle (Blueprint / night mode is the default) */
 (function () {
   const btn = document.getElementById('theme-toggle');

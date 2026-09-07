@@ -1567,6 +1567,9 @@ footer {
   align-items: center;
 }
 footer .gold { color: var(--gold); }
+.footer-credits { font-size: 9px; opacity: 0.75; }
+.footer-credits a { color: var(--teal); text-decoration: none; }
+.footer-credits a:hover { text-decoration: underline; }
 
 /* ── DESIGN PROCESS SECTION ──────────────────────── */
 .process-section { background: var(--bg); }
