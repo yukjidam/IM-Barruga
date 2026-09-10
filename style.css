@@ -1340,6 +1340,14 @@ html.day-mode .status-collab { color: #7c3aed; }
 }
 
 .form-group { display: flex; flex-direction: column; gap: 7px; }
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
 
 .form-label {
   font-family: var(--f-mono);

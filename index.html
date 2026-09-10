@@ -899,7 +899,7 @@
       <p>I'm open to <strong style="color:var(--text)">freelance projects</strong>: AutoCAD drafting, 2D floor plans, 3D models, and similar civil engineering drafting work. If you have something in mind, I'd love to hear about it. I usually reply within a day.</p>
       <div class="contact-line">
         <span class="cl-icon">Email</span>
-        <span class="cl-val"><a href="mailto:imb.barruga@gmail.com">imb.barruga@gmail.com</a></span>
+        <span class="cl-val"><a href="#" id="contact-email-link" data-email="aW1iLmJhcnJ1Z2FAZ21haWwuY29t" rel="nofollow">Reveal email</a></span>
       </div>
       <div class="contact-line">
         <span class="cl-icon">Phone</span>
@@ -939,6 +939,11 @@
       <div class="form-group">
         <label class="form-label">Message</label>
         <textarea class="form-textarea" id="cf-message" name="message" placeholder="Tell me about your project and what you need…" required></textarea>
+      </div>
+      <!-- Honeypot: hidden from real visitors, only bots fill this in -->
+      <div class="form-group hp-field" aria-hidden="true">
+        <label class="form-label" for="cf-website">Website</label>
+        <input type="text" id="cf-website" name="website" tabindex="-1" autocomplete="off">
       </div>
       <div class="form-status" id="cf-status" aria-live="polite"></div>
       <button type="submit" class="submit-btn" id="cf-submit">Send Message →</button>

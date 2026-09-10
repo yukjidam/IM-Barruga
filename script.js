@@ -338,6 +338,31 @@ bars.forEach(b => barObs.observe(b));
 })();
 
 /* ══════════════════════════════════════════════════
+   EMAIL OBFUSCATION - keeps the plain address out of
+   the raw HTML/JS source so basic scrapers can't
+   regex-match it. The address only ever exists as a
+   real mailto: link after this script runs.
+   ══════════════════════════════════════════════════ */
+(function () {
+  const link = document.getElementById('contact-email-link');
+  if (!link) return;
+
+  const encoded = link.getAttribute('data-email');
+  if (!encoded) return;
+
+  let address;
+  try {
+    address = atob(encoded);
+  } catch (e) {
+    return;
+  }
+
+  link.textContent = address;
+  link.setAttribute('href', 'mailto:' + address);
+  link.removeAttribute('data-email');
+})();
+
+/* ══════════════════════════════════════════════════
    CONTACT FORM - sent via EmailJS (no backend needed)
 
    SETUP (one-time, takes ~5 min):
@@ -364,9 +389,59 @@ bars.forEach(b => barObs.observe(b));
   const emailEl   = document.getElementById('cf-email');
   const purposeEl = document.getElementById('cf-purpose');
   const messageEl = document.getElementById('cf-message');
+  const websiteEl = document.getElementById('cf-website'); // honeypot
   const statusEl  = document.getElementById('cf-status');
   const submitBtn = document.getElementById('cf-submit');
   const stampEl   = document.getElementById('stamp-overlay');
+
+  // Anti-spam: form must have been on the page a few seconds before a
+  // real human could plausibly fill and submit it. Bots that submit
+  // instantly on page load get silently blocked.
+  const formLoadedAt = Date.now();
+  const MIN_FILL_TIME_MS = 3000;
+
+  // Anti-spam: cap real submissions to 3 per rolling 24 hours per
+  // browser. Stored in localStorage (not a JS variable or
+  // sessionStorage) so it survives page refreshes and new tabs —
+  // only clearing site data or switching browsers resets it.
+  const DAILY_LIMIT = 3;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const SUBMIT_LOG_KEY = 'cf_submit_log';
+
+  function getSubmitLog() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(SUBMIT_LOG_KEY) || '[]');
+      const cutoff = Date.now() - DAY_MS;
+      return Array.isArray(raw) ? raw.filter(ts => typeof ts === 'number' && ts > cutoff) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function getRemainingSends() {
+    return Math.max(0, DAILY_LIMIT - getSubmitLog().length);
+  }
+
+  function msUntilNextSlotFrees() {
+    const log = getSubmitLog().sort((a, b) => a - b);
+    if (log.length === 0) return 0;
+    return Math.max(0, (log[0] + DAY_MS) - Date.now());
+  }
+
+  function markSubmitted() {
+    try {
+      const log = getSubmitLog();
+      log.push(Date.now());
+      localStorage.setItem(SUBMIT_LOG_KEY, JSON.stringify(log));
+    } catch (e) { /* ignore */ }
+  }
+
+  function formatWait(ms) {
+    const hrs = Math.ceil(ms / (60 * 60 * 1000));
+    if (hrs <= 1) return 'about an hour';
+    if (hrs < 24) return `about ${hrs} hours`;
+    return 'about a day';
+  }
 
   let stampHideTimer = null;
 
@@ -411,8 +486,38 @@ bars.forEach(b => barObs.observe(b));
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
   }
 
+  // If the limit's already used up on page load, disable the form
+  // up front instead of letting someone fill it out only to be
+  // blocked at submit time.
+  function applyDailyLimitState() {
+    if (getRemainingSends() > 0) return;
+    submitBtn.disabled = true;
+    setStatus(`You've reached the limit of ${DAILY_LIMIT} messages per day. Please try again in ${formatWait(msUntilNextSlotFrees())}, or email me directly.`, 'status-error');
+  }
+  applyDailyLimitState();
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+
+    // Honeypot tripped -> silently bail like a normal send, no error
+    // shown, so bots don't learn they were caught.
+    if (websiteEl && websiteEl.value.trim() !== '') {
+      form.reset();
+      setStatus('Message sent! I\'ll get back to you within a day.', 'status-ok');
+      showApprovedStamp();
+      return;
+    }
+
+    // Submitted too fast to be a human filling out the form
+    if (Date.now() - formLoadedAt < MIN_FILL_TIME_MS) {
+      setStatus('Please try again.', 'status-error');
+      return;
+    }
+
+    if (getRemainingSends() <= 0) {
+      setStatus(`You've reached the limit of ${DAILY_LIMIT} messages per day. Please try again in ${formatWait(msUntilNextSlotFrees())}, or email me directly.`, 'status-error');
+      return;
+    }
 
     if (typeof emailjs === 'undefined') {
       setStatus('Email service failed to load, check your internet connection.', 'status-error');
@@ -453,7 +558,8 @@ bars.forEach(b => barObs.observe(b));
     }).then(() => {
       setStatus('Message sent! I\'ll get back to you within a day.', 'status-ok');
       form.reset();
-      submitBtn.disabled = false;
+      markSubmitted();
+      submitBtn.disabled = getRemainingSends() <= 0; // lock the form if that was the 3rd send
       showApprovedStamp();
     }).catch(err => {
       console.error('EmailJS send error:', err);
