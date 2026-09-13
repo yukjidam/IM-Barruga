@@ -42,7 +42,7 @@ Every section is built with scroll-triggered reveals, so the page unfolds progre
 
 ## Contact
 
-- **Email:** [ayinmatyu.0523@gmail.com](mailto:ayinmatyu.0523@gmail.com)
+- **Email:** [imb.barruga@gmail.com](mailto:imb.barruga@gmail.com)
 - **Phone:** +63 919 943 5693
 - **School:** Mariano Marcos State University, Batac City, Ilocos Norte
 - **Status:** 4th Year Civil Engineering Student, MMSU · Open to freelance AutoCAD drafting work
