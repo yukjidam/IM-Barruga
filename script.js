@@ -46,10 +46,35 @@ const SITE_CONFIG = {
     if (labelBottom) labelBottom.textContent = copy.bottom;
   }
 
-  btn.addEventListener('click', function () {
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function applyTheme() {
     const isBuilt = root.classList.toggle('day-mode');
     try { localStorage.setItem('theme', isBuilt ? 'day' : 'night'); } catch (e) {}
     setState();
+  }
+
+  btn.addEventListener('click', function () {
+    // No View Transitions support (or motion is reduced) → just flip the mode.
+    if (!document.startViewTransition || reduceMotion) {
+      applyTheme();
+      return;
+    }
+
+    // Sweep the reveal outward from the compass icon itself, sized to
+    // reach the farthest corner so it always fully covers the viewport.
+    const rect = btn.getBoundingClientRect();
+    const originX = rect.left + rect.width / 2;
+    const originY = rect.top + rect.height / 2;
+    const radius = Math.hypot(
+      Math.max(originX, window.innerWidth - originX),
+      Math.max(originY, window.innerHeight - originY)
+    );
+    root.style.setProperty('--ce-origin-x', originX + 'px');
+    root.style.setProperty('--ce-origin-y', originY + 'px');
+    root.style.setProperty('--ce-radius', radius + 'px');
+
+    document.startViewTransition(applyTheme);
   });
 
   setState();

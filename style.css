@@ -489,6 +489,32 @@ html.day-mode .ce-toggle:hover .ce-toggle-track { border-color: var(--gold); }
 html.day-mode .ce-toggle-caption-blueprint { color: var(--muted); opacity: 0.4; }
 html.day-mode .ce-toggle-caption-built { color: var(--gold); opacity: 1; }
 
+/* ── Theme-switch page transition: compass-sweep reveal ──
+   The toggle's own icon is a drafting compass, so the page
+   change echoes that tool: an expanding circle traced from
+   the compass's position, like an arc swept onto a drawing,
+   uncovering the new mode underneath. One shape, no assets,
+   powered by the native View Transitions API. Browsers that
+   don't support it (or that request reduced motion) just get
+   the instant switch, so nothing ever breaks. ── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) {
+  z-index: 2;
+  animation: ce-compass-sweep 0.7s cubic-bezier(.65, 0, .35, 1);
+}
+@keyframes ce-compass-sweep {
+  from { clip-path: circle(0px at var(--ce-origin-x, 50%) var(--ce-origin-y, 50%)); }
+  to   { clip-path: circle(var(--ce-radius, 150%) at var(--ce-origin-x, 50%) var(--ce-origin-y, 50%)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) { animation: none; }
+}
+
 /* Hamburger toggle - hidden on desktop, shown at the nav-collapse breakpoint */
 .nav-toggle {
   display: none;
