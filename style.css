@@ -555,31 +555,113 @@ html.day-mode .ce-toggle:hover .ce-level-vial { border-color: var(--gold); }
 html.day-mode .ce-toggle-caption-blueprint { color: var(--muted); opacity: 0.4; }
 html.day-mode .ce-toggle-caption-built { color: var(--gold); opacity: 1; }
 
-/* ── Theme-switch page transition: LEVELLING OUT ──────
-   The toggle is a level, so the page doesn't wipe or
-   sweep — it *levels*. The new mode opens outward from
-   a single horizontal datum line at the centre of the
-   viewport, top and bottom halves separating like a
-   reading coming into tolerance. One axis, matching the
-   instrument's own. Native View Transitions API, so
-   browsers without it (or with reduced motion) get the
-   instant switch and nothing ever breaks. ── */
+/* ── Theme-switch page transition: PLOTTER PASS ────────
+   A wide-format plotter head rakes across the viewport
+   and re-plots the sheet: ahead of the bar is the old
+   drawing, behind it the new one, already laid down.
+
+   The trick is that the outgoing and incoming snapshots
+   are clipped to two parallel raked edges offset by a
+   fixed gap, so neither layer paints inside that gap —
+   what shows through is the background of the transition
+   group itself. That background is a full-viewport
+   gradient, so the exposed band reads as a lit plotter
+   bar, and because the gradient is fixed to the viewport
+   while the band travels across it, the bar cools from
+   teal (blueprint ink) to gold (as-built) on the way
+   over. Both layers share one duration and one easing,
+   which is what keeps the gap a constant width.
+
+   Deliberately no transforms on either layer: a scale of
+   even half a percent would shift each clipped edge by a
+   different amount and make the bar's width visibly
+   breathe. Depth comes from opacity instead.
+
+   Direction follows the instrument — left to right into
+   As-Built, right to left back to Blueprint. Native View
+   Transitions API; browsers without it, or with reduced
+   motion, get the instant switch, so nothing breaks. ── */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
 }
-::view-transition-old(root) { z-index: 1; }
+
+/* The lit bar. Only ever visible through the gap between
+   the two clipped layers, so this gradient is sampled a
+   slice at a time as the gap sweeps across it. */
+::view-transition-group(root) {
+  background-image: linear-gradient(
+    100deg,
+    #4ab8c8 0%,
+    #7fd4e0 18%,
+    #cfe8c8 38%,
+    #e8b44a 58%,
+    #fff3d4 72%,
+    #e8b44a 86%,
+    #d89b2e 100%
+  );
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+  animation:
+    ce-plot-old-ltr var(--ce-plot-dur, 0.92s) var(--ce-plot-ease, cubic-bezier(.62,.03,.33,1)) both,
+    ce-plot-recede  var(--ce-plot-dur, 0.92s) var(--ce-plot-ease, cubic-bezier(.62,.03,.33,1)) both;
+}
 ::view-transition-new(root) {
   z-index: 2;
-  animation: ce-level-out 0.75s cubic-bezier(.62, 0, .3, 1);
+  animation:
+    ce-plot-new-ltr var(--ce-plot-dur, 0.92s) var(--ce-plot-ease, cubic-bezier(.62,.03,.33,1)) both,
+    ce-plot-ink     var(--ce-plot-dur, 0.92s) var(--ce-plot-ease, cubic-bezier(.62,.03,.33,1)) both;
 }
-@keyframes ce-level-out {
-  from { clip-path: inset(50% 0 50% 0); }
-  to   { clip-path: inset(0 0 0 0); }
+html[data-ce-dir="rtl"]::view-transition-old(root) {
+  animation-name: ce-plot-old-rtl, ce-plot-recede;
 }
+html[data-ce-dir="rtl"]::view-transition-new(root) {
+  animation-name: ce-plot-new-rtl, ce-plot-ink;
+}
+
+/* ── LEFT → RIGHT (into As-Built) ──
+   Raked edge: the top of the bar runs 14% ahead of the
+   bottom, the way a plotter head leads across a sheet.
+   New is clipped to everything left of the leading edge;
+   old to everything right of that edge plus a 3.5% gap. */
+@keyframes ce-plot-new-ltr {
+  from { clip-path: polygon(-20% 0%,   -3.5% 0%,  -17.5% 100%, -20% 100%); }
+  to   { clip-path: polygon(-20% 0%,  114%   0%,  100%   100%, -20% 100%); }
+}
+@keyframes ce-plot-old-ltr {
+  from { clip-path: polygon(0%     0%, 120% 0%, 120% 100%, -14%   100%); }
+  to   { clip-path: polygon(117.5% 0%, 120% 0%, 120% 100%, 103.5% 100%); }
+}
+
+/* ── RIGHT → LEFT (back to Blueprint) ── mirrored */
+@keyframes ce-plot-new-rtl {
+  from { clip-path: polygon(103.5% 0%, 120% 0%, 120% 100%, 117.5% 100%); }
+  to   { clip-path: polygon(-14%   0%, 120% 0%, 120% 100%, 0%      100%); }
+}
+@keyframes ce-plot-old-rtl {
+  from { clip-path: polygon(-20% 0%, 100%   0%, 114%  100%, -20% 100%); }
+  to   { clip-path: polygon(-20% 0%, -17.5% 0%, -3.5% 100%, -20% 100%); }
+}
+
+/* Outgoing sheet dims very slightly as it is pulled off */
+@keyframes ce-plot-recede {
+  from { opacity: 1; }
+  to   { opacity: 0.88; }
+}
+/* Incoming sheet comes up to full density behind the bar,
+   like ink settling a beat after the head has passed */
+@keyframes ce-plot-ink {
+  from { opacity: 0.94; }
+  to   { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
   ::view-transition-new(root) { animation: none; }
+  ::view-transition-group(root) { background-image: none; }
 }
 
 /* Hamburger toggle - hidden on desktop, shown at the nav-collapse breakpoint */
