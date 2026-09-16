@@ -61,19 +61,8 @@ const SITE_CONFIG = {
       return;
     }
 
-    // Sweep the reveal outward from the compass icon itself, sized to
-    // reach the farthest corner so it always fully covers the viewport.
-    const rect = btn.getBoundingClientRect();
-    const originX = rect.left + rect.width / 2;
-    const originY = rect.top + rect.height / 2;
-    const radius = Math.hypot(
-      Math.max(originX, window.innerWidth - originX),
-      Math.max(originY, window.innerHeight - originY)
-    );
-    root.style.setProperty('--ce-origin-x', originX + 'px');
-    root.style.setProperty('--ce-origin-y', originY + 'px');
-    root.style.setProperty('--ce-radius', radius + 'px');
-
+    // The levelling transition opens from the viewport's centre datum,
+    // so it needs no origin or direction — the animation is all in CSS.
     document.startViewTransition(applyTheme);
   });
 

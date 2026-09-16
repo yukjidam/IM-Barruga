@@ -338,11 +338,15 @@ nav {
   justify-self: end;
 }
 
-/* ── "Blueprint → As-Built" toggle ──────────────────
-   A drafting-instrument switch: a compass (planning)
-   slides across a night sky of survey stars, and turns
-   into a built skyline under sunrise rays as the project
-   moves from Blueprint to As-Built. ── */
+/* ── "Blueprint → As-Built" toggle: SPIRIT LEVEL ────
+   Not a switch at all — a surveyor's bubble level, the
+   instrument that decides whether something is true.
+   Blueprint: the vial sits tilted and the bubble is run
+   off to the low end — a reading out of tolerance, work
+   not yet verified. Click and the vial rotates level;
+   the bubble obeys, rolling toward the etched centre
+   window, overshooting, rocking back and settling
+   between the marks. As-Built = the reading checks out. ── */
 .ce-toggle {
   display: flex;
   align-items: center;
@@ -352,127 +356,189 @@ nav {
   padding: 0;
   cursor: pointer;
   flex-shrink: 0;
-}
-.ce-toggle-track {
-  position: relative;
-  width: 52px;
-  height: 28px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: linear-gradient(180deg, #0c1420 0%, #0a1119 100%);
-  overflow: hidden;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
-  transition: background 0.45s ease, border-color 0.35s ease, box-shadow 0.45s ease;
-}
-html.day-mode .ce-toggle-track {
-  background: linear-gradient(180deg, #cfe9f6 0%, #eaf6fb 100%);
-  border-color: var(--gold);
-  box-shadow: inset 0 1px 3px rgba(180,140,40,0.15);
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Faint drafting-grid overlay across the whole track */
-.ce-toggle-track::before {
+/* Wrapper holds the vial plus the machined body it sits in */
+.ce-level {
+  position: relative;
+  display: block;
+  width: 58px;
+  height: 30px;
+  flex-shrink: 0;
+  color: var(--teal);
+  transition: color 0.5s ease, transform 0.18s ease;
+}
+html.day-mode .ce-level { color: var(--gold); }
+
+/* The machined aluminium body the vial is seated in — a thin
+   bar under the glass, so the thing reads as a tool and not
+   as a UI pill. Stays perfectly horizontal; only the vial tilts. */
+.ce-level-base {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 0;
+  height: 4px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, rgba(74,184,200,0.35), rgba(74,184,200,0.12));
+  transition: background 0.5s ease;
+}
+html.day-mode .ce-level-base {
+  background: linear-gradient(180deg, rgba(169,122,40,0.5), rgba(169,122,40,0.18));
+}
+/* Machined notches on the body */
+.ce-level-base::before,
+.ce-level-base::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(74,184,200,0.3) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(74,184,200,0.3) 1px, transparent 1px);
-  background-size: 7px 7px;
-  opacity: 0.4;
-  transition: opacity 0.35s ease, background-image 0.35s ease;
+  top: -2px;
+  width: 1px;
+  height: 8px;
+  background: currentColor;
+  opacity: 0.35;
 }
-html.day-mode .ce-toggle-track::before {
-  background-image:
-    linear-gradient(rgba(28,32,28,0.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(28,32,28,0.12) 1px, transparent 1px);
-  opacity: 0.55;
+.ce-level-base::before { left: 9px; }
+.ce-level-base::after  { right: 9px; }
+
+/* ── THE VIAL ──
+   Barrel-shaped glass tube. This is the part that tilts.
+   Rotating the vial (not the bubble) is what makes the
+   bubble's travel read as gravity rather than as a slider. */
+.ce-level-vial {
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 58px;
+  height: 22px;
+  border: 1px solid rgba(74,184,200,0.45);
+  border-radius: 11px / 9px;
+  overflow: hidden;
+  transform-origin: 50% 120%;
+  transform: rotate(3.2deg);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.45),
+    inset 0 -1px 2px rgba(255,255,255,0.06);
+  transition:
+    transform 0.72s cubic-bezier(.36,1.42,.5,1),
+    border-color 0.5s ease,
+    box-shadow 0.5s ease;
+}
+html.day-mode .ce-level-vial {
+  transform: rotate(0deg);
+  border-color: rgba(169,122,40,0.55);
+  box-shadow:
+    inset 0 2px 4px rgba(120,90,20,0.18),
+    inset 0 -1px 2px rgba(255,255,255,0.7);
 }
 
-/* Night sky: tiny scattered survey-point stars, fade out in day mode */
-.ce-toggle-stars {
+/* The fluid filling the tube */
+.ce-level-fluid {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  opacity: 1;
-  transition: opacity 0.4s ease;
-  pointer-events: none;
+  background: linear-gradient(180deg, rgba(74,184,200,0.10) 0%, rgba(74,184,200,0.22) 100%);
+  transition: background 0.5s ease;
 }
-html.day-mode .ce-toggle-stars { opacity: 0; }
-.ce-toggle-stars i {
+html.day-mode .ce-level-fluid {
+  background: linear-gradient(180deg, rgba(232,180,74,0.22) 0%, rgba(169,122,40,0.30) 100%);
+}
+/* Curved glass highlight running along the top of the tube */
+.ce-level-fluid::after {
+  content: '';
   position: absolute;
-  width: 1.5px;
-  height: 1.5px;
+  left: 5px;
+  right: 5px;
+  top: 2px;
+  height: 5px;
   border-radius: 50%;
-  background: #cdeaf2;
+  background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0));
 }
-.ce-toggle-stars i:nth-child(1) { top: 5px;  left: 8px; }
-.ce-toggle-stars i:nth-child(2) { top: 11px; left: 16px; opacity: 0.6; }
-.ce-toggle-stars i:nth-child(3) { top: 6px;  left: 24px; opacity: 0.8; }
-.ce-toggle-stars i:nth-child(4) { top: 18px; left: 12px; opacity: 0.5; }
-.ce-toggle-stars i:nth-child(5) { top: 20px; left: 22px; }
-.ce-toggle-stars i:nth-child(6) { top: 9px;  left: 32px; opacity: 0.7; }
-.ce-toggle-stars i:nth-child(7) { top: 16px; left: 4px;  opacity: 0.5; }
 
-/* Day sky: soft sunrise glow that fades in behind the knob */
-.ce-toggle-sun-rays {
+/* Graduation marks etched down the length of the vial */
+.ce-level-ticks {
+  position: absolute;
+  inset: 4px 3px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    currentColor 0 1px,
+    transparent 1px 7px
+  );
+  opacity: 0.18;
+  transition: opacity 0.5s ease;
+}
+html.day-mode .ce-level-ticks { opacity: 0.26; }
+
+/* The centre window — the two heavy etched lines a bubble
+   must sit between for the reading to count as level. */
+.ce-level-window {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  transform: translateX(-50%);
+  border-left: 1.5px solid rgba(74,184,200,0.5);
+  border-right: 1.5px solid rgba(74,184,200,0.5);
+  transition: border-color 0.5s ease, box-shadow 0.5s ease;
+}
+html.day-mode .ce-level-window {
+  border-left-color: var(--gold);
+  border-right-color: var(--gold);
+  box-shadow: 0 0 7px rgba(232,180,74,0.45);
+}
+
+/* ── THE BUBBLE ──
+   Rolls to whichever end of the tilted vial is raised.
+   The overshoot easing gives it the slosh of trapped air:
+   it runs past the mark, rocks back, and settles. */
+.ce-level-bubble {
   position: absolute;
   top: 50%;
-  left: 8px;
-  width: 30px;
-  height: 30px;
-  transform: translateY(-50%);
+  left: 4px;
+  width: 15px;
+  height: 15px;
+  margin-top: -7.5px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(232,180,74,0.55) 0%, rgba(232,180,74,0) 70%);
-  opacity: 0;
-  transition: opacity 0.4s ease, left 0.45s cubic-bezier(.65,0,.35,1);
-  pointer-events: none;
+  background: radial-gradient(circle at 35% 30%, #eafaff 0%, #a8dfe9 55%, #6bbccd 100%);
+  box-shadow:
+    0 0 6px rgba(74,184,200,0.75),
+    inset 0 -1px 2px rgba(0,0,0,0.18);
+  transform: translateX(0);
+  transition:
+    transform 0.72s cubic-bezier(.36,1.42,.5,1),
+    background 0.5s ease,
+    box-shadow 0.5s ease;
 }
-html.day-mode .ce-toggle-sun-rays {
-  opacity: 1;
-  left: 20px;
+html.day-mode .ce-level-bubble {
+  /* Vial comes level, so the bubble settles dead centre, inside the
+     window. Inner width 56 ÷ 2 = 28 centre; bubble is 15 wide, so its
+     left edge lands at 20.5 — a travel of 16.5px from its 4px rest. */
+  transform: translateX(16.5px);
+  background: radial-gradient(circle at 35% 30%, #fffdf4 0%, #ffe7ad 55%, #e8b44a 100%);
+  box-shadow:
+    0 0 8px rgba(232,180,74,0.8),
+    inset 0 -1px 2px rgba(120,90,20,0.22);
 }
 
-.ce-toggle-knob {
-  position: absolute;
-  top: 2.5px;
-  left: 2.5px;
-  width: 21px;
-  height: 21px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg);
-  border: 1px solid var(--teal);
-  border-radius: 50%;
-  color: var(--teal);
-  z-index: 3;
-  box-shadow: 0 0 6px rgba(74,184,200,0.55), 0 1px 2px rgba(0,0,0,0.4);
-  transition: transform 0.4s cubic-bezier(.65,0,.35,1), border-color 0.4s ease, color 0.4s ease, background 0.4s ease, box-shadow 0.4s ease;
-}
-html.day-mode .ce-toggle-knob {
-  transform: translateX(24px);
+/* Hover / press feedback on the instrument as a whole */
+.ce-toggle:hover .ce-level-vial { border-color: var(--teal); }
+html.day-mode .ce-toggle:hover .ce-level-vial { border-color: var(--gold); }
+.ce-toggle:active .ce-level { transform: scale(0.95); }
+
+.ce-toggle:focus-visible { outline: none; }
+.ce-toggle:focus-visible .ce-level-vial {
   border-color: var(--gold);
-  color: #b8791a;
-  background: #fff8e8;
-  box-shadow: 0 0 8px rgba(232,180,74,0.65), 0 1px 2px rgba(0,0,0,0.15);
+  box-shadow: 0 0 0 2px var(--gold-dim);
 }
-.ce-icon {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  transition: opacity 0.3s ease, transform 0.4s cubic-bezier(.65,0,.35,1);
+
+/* Reduced motion: the bubble still moves so the state is
+   readable, it just goes straight there without the slosh. */
+@media (prefers-reduced-motion: reduce) {
+  .ce-level-vial,
+  .ce-level-bubble { transition-duration: 0.01s; }
 }
-.ce-icon-compass { opacity: 1; transform: rotate(0deg) scale(1); }
-.ce-icon-building { opacity: 0; transform: rotate(-70deg) scale(0.4); }
-html.day-mode .ce-icon-compass { opacity: 0; transform: rotate(70deg) scale(0.4); }
-html.day-mode .ce-icon-building { opacity: 1; transform: rotate(0deg) scale(1); }
 
-.ce-toggle:hover .ce-toggle-track { border-color: var(--teal); }
-html.day-mode .ce-toggle:hover .ce-toggle-track { border-color: var(--gold); }
-.ce-toggle:active .ce-toggle-track { transform: scale(0.96); }
-
-/* Small caption beside the switch, echoing the mode in words */
+/* Small caption beside the instrument, echoing the mode in words */
 .ce-toggle-caption {
   display: flex;
   flex-direction: column;
@@ -489,14 +555,15 @@ html.day-mode .ce-toggle:hover .ce-toggle-track { border-color: var(--gold); }
 html.day-mode .ce-toggle-caption-blueprint { color: var(--muted); opacity: 0.4; }
 html.day-mode .ce-toggle-caption-built { color: var(--gold); opacity: 1; }
 
-/* ── Theme-switch page transition: compass-sweep reveal ──
-   The toggle's own icon is a drafting compass, so the page
-   change echoes that tool: an expanding circle traced from
-   the compass's position, like an arc swept onto a drawing,
-   uncovering the new mode underneath. One shape, no assets,
-   powered by the native View Transitions API. Browsers that
-   don't support it (or that request reduced motion) just get
-   the instant switch, so nothing ever breaks. ── */
+/* ── Theme-switch page transition: LEVELLING OUT ──────
+   The toggle is a level, so the page doesn't wipe or
+   sweep — it *levels*. The new mode opens outward from
+   a single horizontal datum line at the centre of the
+   viewport, top and bottom halves separating like a
+   reading coming into tolerance. One axis, matching the
+   instrument's own. Native View Transitions API, so
+   browsers without it (or with reduced motion) get the
+   instant switch and nothing ever breaks. ── */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
@@ -505,11 +572,11 @@ html.day-mode .ce-toggle-caption-built { color: var(--gold); opacity: 1; }
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) {
   z-index: 2;
-  animation: ce-compass-sweep 0.7s cubic-bezier(.65, 0, .35, 1);
+  animation: ce-level-out 0.75s cubic-bezier(.62, 0, .3, 1);
 }
-@keyframes ce-compass-sweep {
-  from { clip-path: circle(0px at var(--ce-origin-x, 50%) var(--ce-origin-y, 50%)); }
-  to   { clip-path: circle(var(--ce-radius, 150%) at var(--ce-origin-x, 50%) var(--ce-origin-y, 50%)); }
+@keyframes ce-level-out {
+  from { clip-path: inset(50% 0 50% 0); }
+  to   { clip-path: inset(0 0 0 0); }
 }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-new(root) { animation: none; }
