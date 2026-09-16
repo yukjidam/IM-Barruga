@@ -506,6 +506,7 @@
   <ul class="nav-links" id="nav-links">
     <li><a href="#projects">Projects</a></li>
     <li><a href="#process">Process</a></li>
+    <li><a href="#beam-lab">Beam Lab</a></li>
     <li><a href="#education">Education</a></li>
     <li><a href="#skills">Skills</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -793,6 +794,83 @@
         <div class="process-desc">Markups incorporated, sheets finalized, and (for completed projects) field verification against the as-built condition.</div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- BEAM LAB — live elastic beam analysis, solved in the browser -->
+<section id="beam-lab" class="beamlab-section">
+  <div class="sec-head reveal">
+    <div class="sec-tag">Interactive</div>
+    <h2 class="sec-title">Beam Lab</h2>
+    <div class="sec-rule"></div>
+  </div>
+
+  <p class="bl-intro reveal">
+    Not a picture of an analysis but an actual one. Move the load, change the span, swap the end
+    conditions, and the shear, moment and deflected shape are re-solved from scratch on every frame.
+  </p>
+
+  <div class="bl-wrap reveal">
+
+    <div class="bl-sheet">
+      <div class="bl-titlebar">
+        <span id="bl-dwg">DWG-S-BM01 &middot; Simply Supported</span>
+        <span class="bl-titlebar-right">300&times;500 RC &middot; f&prime;c 21 MPa &middot; EI 67 306 kN&middot;m&sup2;</span>
+      </div>
+      <div class="bl-scroll">
+        <svg id="bl-svg" viewBox="0 0 900 548" xmlns="http://www.w3.org/2000/svg" fill="none"
+             role="img" aria-label="Beam elevation with shear force and bending moment diagrams, recalculated live.">
+          <g id="bl-plot"></g>
+        </svg>
+      </div>
+      <div class="bl-hint" id="bl-hint" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M9 8l-4 4 4 4M15 8l4 4-4 4"/></svg>
+        DRAG THE LOAD ALONG THE SPAN
+      </div>
+    </div>
+
+    <aside class="bl-panel">
+      <div class="bl-panel-head">End Conditions</div>
+      <div class="bl-seg" role="group" aria-label="Support condition">
+        <button type="button" class="bl-seg-btn is-on" data-sup="ss" aria-pressed="true">Simply Supported</button>
+        <button type="button" class="bl-seg-btn" data-sup="cant" aria-pressed="false">Cantilever</button>
+        <button type="button" class="bl-seg-btn" data-sup="ff" aria-pressed="false">Fixed &ndash; Fixed</button>
+      </div>
+
+      <div class="bl-panel-head">Loading</div>
+      <label class="bl-ctl">
+        <span class="bl-ctl-lab">Span, L<b id="bl-L-out">6.00 m</b></span>
+        <input type="range" id="bl-L" min="3" max="10" step="0.25" value="6">
+      </label>
+      <label class="bl-ctl">
+        <span class="bl-ctl-lab">Point load, P<b id="bl-P-out">30.0 kN</b></span>
+        <input type="range" id="bl-P" min="0" max="120" step="1" value="30">
+      </label>
+      <label class="bl-ctl">
+        <span class="bl-ctl-lab">Load position, a<b id="bl-a-out">3.00 m</b></span>
+        <input type="range" id="bl-a" min="0" max="1" step="0.002" value="0.5">
+      </label>
+      <label class="bl-ctl">
+        <span class="bl-ctl-lab">Distributed, w<b id="bl-w-out">12.0 kN/m</b></span>
+        <input type="range" id="bl-w" min="0" max="60" step="0.5" value="12">
+      </label>
+
+      <div class="bl-panel-head">Results</div>
+      <dl class="bl-out">
+        <div><dt id="bl-r1-lab">R<sub>A</sub></dt><dd id="bl-r1">&mdash;</dd></div>
+        <div><dt id="bl-r2-lab">R<sub>B</sub></dt><dd id="bl-r2">&mdash;</dd></div>
+        <div><dt>V<sub>max</sub></dt><dd id="bl-v">&mdash;</dd></div>
+        <div><dt>M<sub>max</sub></dt><dd id="bl-m">&mdash;</dd></div>
+        <div><dt>&delta;<sub>max</sub></dt><dd id="bl-d">&mdash;</dd></div>
+        <div><dt>Limit L/360</dt><dd id="bl-lim">&mdash;</dd></div>
+      </dl>
+      <div class="bl-check" id="bl-check">&mdash;</div>
+      <p class="bl-note">
+        Linear-elastic, small-deflection theory. Moments plotted sagging-positive above the axis;
+        the deflected shape is exaggerated to stay visible.
+      </p>
+    </aside>
+
   </div>
 </section>
 

@@ -2158,3 +2158,216 @@ footer .gold { color: var(--gold); }
 @media (prefers-reduced-motion: reduce) {
   .dl, .fi, .reveal, .timeline-item { animation: none; transition: none; opacity: 1; transform: none; }
 }
+
+/* ── BEAM LAB ─────────────────────────────────────
+   A live elastic beam solver presented as a drafting
+   sheet: title block, elevation, SFD, BMD, and a
+   results panel. All SVG colour comes from the shared
+   tokens, so it follows Blueprint ⇄ As-Built for free. */
+.beamlab-section { background: var(--surface); }
+
+.bl-intro {
+  max-width: 640px;
+  margin: -40px 0 40px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--muted);
+}
+
+.bl-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 28px;
+  align-items: start;
+}
+
+.bl-sheet {
+  position: relative;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bl-titlebar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--f-mono);
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.bl-titlebar-right { color: var(--muted); text-align: right; }
+.bl-scroll { overflow-x: auto; }
+#bl-svg { display: block; width: 100%; height: auto; }
+
+.bl-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 9px/1 var(--f-mono);
+  letter-spacing: 0.1em;
+  color: var(--teal);
+  opacity: 0.7;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.bl-hint.is-hidden { opacity: 0; }
+
+/* ── drawing elements ── */
+#bl-svg text { font-family: var(--f-mono); fill: var(--muted); }
+.bl-lab { font-size: 10px; letter-spacing: 0.6px; }
+.bl-val { font-size: 11px; fill: var(--text); }
+.bl-tick { stroke: var(--border); stroke-width: 1; }
+.bl-axis { stroke: var(--muted); stroke-width: 1; opacity: 0.55; }
+.bl-beam { stroke: var(--heading); stroke-width: 3.5; stroke-linecap: square; }
+.bl-sup  { stroke: var(--text); stroke-width: 1.6; fill: var(--surface2); }
+.bl-grnd { stroke: var(--muted); stroke-width: 1; opacity: 0.7; }
+.bl-defl { stroke: var(--gold); stroke-width: 2; stroke-dasharray: 6 4; fill: none; }
+.bl-load { stroke: var(--gold); stroke-width: 2; fill: var(--gold); }
+.bl-udl  { stroke: var(--teal); stroke-width: 1.3; fill: var(--teal); opacity: 0.8; }
+.bl-rxn  { stroke: var(--teal); stroke-width: 1.8; fill: var(--teal); }
+.bl-shear  { fill: var(--teal-dim); stroke: var(--teal); stroke-width: 1.6; }
+.bl-moment { fill: var(--gold-dim); stroke: var(--gold); stroke-width: 1.6; }
+.bl-handle {
+  fill: var(--gold);
+  stroke: var(--bg);
+  stroke-width: 2.5;
+  cursor: grab;
+  touch-action: none;
+}
+.bl-handle:active { cursor: grabbing; }
+.bl-handle:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+.bl-handle-hit { fill: transparent; cursor: grab; touch-action: none; }
+
+/* ── control panel ── */
+.bl-panel {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 2px;
+  padding: 18px 18px 20px;
+}
+.bl-panel-head {
+  font-family: var(--f-mono);
+  font-size: 9px;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin: 20px 0 10px;
+}
+.bl-panel-head:first-child { margin-top: 0; }
+
+.bl-seg { display: grid; gap: 5px; }
+.bl-seg-btn {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-align: left;
+  padding: 8px 10px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+.bl-seg-btn:hover { color: var(--text); border-color: var(--gold); }
+.bl-seg-btn.is-on {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: var(--gold-dim);
+}
+
+.bl-ctl { display: block; margin-bottom: 14px; }
+.bl-ctl-lab {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.bl-ctl-lab b { color: var(--text); font-weight: 400; }
+.bl-ctl input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.bl-ctl input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+.bl-ctl input[type="range"]::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--gold);
+  cursor: pointer;
+}
+.bl-ctl input[type="range"]:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+
+.bl-out { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.bl-out > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  background: var(--bg);
+}
+.bl-out dt { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+.bl-out dd { font-family: var(--f-mono); font-size: 11px; color: var(--text); text-align: right; }
+
+.bl-check {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-align: center;
+  color: var(--muted);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.bl-check.is-pass { color: var(--teal); border-color: var(--teal); background: var(--teal-dim); }
+.bl-check.is-fail { color: var(--gold); border-color: var(--gold); background: var(--gold-dim); }
+
+.bl-note {
+  margin-top: 14px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+@media (max-width: 980px) {
+  .bl-wrap { grid-template-columns: minmax(0, 1fr); }
+  .bl-intro { margin-top: -24px; }
+  #bl-svg { min-width: 640px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bl-hint { transition: none; }
+}

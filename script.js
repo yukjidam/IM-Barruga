@@ -1453,3 +1453,364 @@ bars.forEach(b => barObs.observe(b));
   resize();
   requestAnimationFrame(frame);
 })();
+
+/* ══════════════════════════════════════════════════
+   BEAM LAB
+   A real linear-elastic beam solver running in the page,
+   drawn as a drafting sheet: elevation, shear force
+   diagram, bending moment diagram, deflected shape.
+
+   Nothing here is a canned illustration. Every frame:
+     1. reactions are resolved for the chosen end
+        conditions - statically for the simply supported
+        and cantilever cases, from the standard fixed-end
+        moment expressions (superposed for P and w) for
+        the doubly built-in case;
+     2. V(x) and M(x) are evaluated station by station
+        with an extra pair of stations either side of the
+        point load so the shear jump renders as a clean
+        vertical step rather than a slope;
+     3. the elastic curve is obtained by integrating
+        M/EI twice with the trapezoidal rule, then fitting
+        the integration constants to the end conditions
+        (theta0 solved from y(L)=0 when simply supported,
+        both constants zero when built in at the left).
+
+   Integrating numerically rather than pasting in a
+   closed-form deflection formula is what lets one code
+   path serve every combination of span, load position,
+   UDL and end condition without special cases.
+
+   Colours all come from the shared --teal / --gold /
+   --text tokens via CSS classes, so the whole sheet
+   follows Blueprint ⇄ As-Built without any JS.
+   ══════════════════════════════════════════════════ */
+(function () {
+  const svg = document.getElementById('bl-svg');
+  if (!svg) return;
+  const plot = document.getElementById('bl-plot');
+  const dwgEl = document.getElementById('bl-dwg');
+  const hint = document.getElementById('bl-hint');
+  const $ = id => document.getElementById(id);
+
+  // 300 x 500 rectangular RC section, f'c = 21 MPa.
+  // E = 4700*sqrt(f'c) MPa (NSCP / ACI), converted to kN/m².
+  const E = 4700 * Math.sqrt(21) * 1000;
+  const Iner = 0.30 * Math.pow(0.50, 3) / 12;
+  const EI = E * Iner;                      // ≈ 67 306 kN·m²
+
+  // sheet geometry (viewBox units)
+  const X0 = 110, X1 = 812;
+  const BY = 150;                           // beam baseline
+  const SZ = 316, MZ = 458, AMP = 56;       // diagram zero lines + half heights
+
+  const SUP_NAME = { ss: 'Simply Supported', cant: 'Cantilever', ff: 'Fixed \u2013 Fixed' };
+
+  let sup = 'ss';
+  let L = 6, P = 30, w = 12, aFrac = 0.5;
+
+  const fmt = (v, d) => (Math.abs(v) < 5e-4 ? 0 : v).toFixed(d);
+  const sx = xm => X0 + (xm / L) * (X1 - X0);
+
+  // ---------------------------------------------------------------- solver
+  function solve() {
+    const a = aFrac * L, b = L - a;
+    let RA = 0, RB = 0, MA = 0;
+
+    if (sup === 'ss') {
+      RB = (P * a + w * L * L / 2) / L;
+      RA = P + w * L - RB;
+    } else if (sup === 'cant') {
+      RA = P + w * L;
+      MA = -(P * a + w * L * L / 2);
+    } else {
+      RA = (L ? P * b * b * (L + 2 * a) / (L * L * L) : 0) + w * L / 2;
+      RB = (L ? P * a * a * (L + 2 * b) / (L * L * L) : 0) + w * L / 2;
+      MA = -(L ? P * a * b * b / (L * L) : 0) - w * L * L / 12;
+    }
+
+    // stations, doubled either side of the point load
+    const N = 260, xs = [];
+    for (let i = 0; i <= N; i++) xs.push(i * L / N);
+    if (a > 1e-6 && a < L - 1e-6) xs.push(a - 1e-7, a + 1e-7);
+    xs.sort((p, q) => p - q);
+
+    const V = [], M = [];
+    for (const x of xs) {
+      V.push(RA - w * x - (x > a ? P : 0));
+      M.push(MA + RA * x - w * x * x / 2 - (x > a ? P * (x - a) : 0));
+    }
+
+    // elastic curve: EI y'' = M, integrated twice
+    const n = xs.length - 1;
+    const th = [0], y = [0];
+    for (let i = 1; i <= n; i++) {
+      const h = xs[i] - xs[i - 1];
+      th.push(th[i - 1] + (M[i] + M[i - 1]) / (2 * EI) * h);
+    }
+    for (let i = 1; i <= n; i++) {
+      const h = xs[i] - xs[i - 1];
+      y.push(y[i - 1] + (th[i] + th[i - 1]) / 2 * h);
+    }
+    if (sup === 'ss' && L > 0) {
+      const c = -y[n] / L;                  // rotation at A that closes y(L) = 0
+      for (let i = 0; i <= n; i++) y[i] += c * xs[i];
+    }
+
+    let vMax = 0, mMax = 0, dMax = 0, dAt = 0;
+    for (let i = 0; i <= n; i++) {
+      if (Math.abs(V[i]) > Math.abs(vMax)) vMax = V[i];
+      if (Math.abs(M[i]) > Math.abs(mMax)) mMax = M[i];
+      if (Math.abs(y[i]) > Math.abs(dMax)) { dMax = y[i]; dAt = xs[i]; }
+    }
+    return { a, RA, RB, MA, xs, V, M, y, n, vMax, mMax, dMax, dAt };
+  }
+
+  // ---------------------------------------------------------------- drawing
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const txt = (x, y, s, cls, anchor) =>
+    `<text x="${x}" y="${y}" class="${cls || 'bl-lab'}" text-anchor="${anchor || 'start'}">${esc(s)}</text>`;
+  // same, but the caller supplies markup (used for true subscripts - no Unicode
+  // subscript exists for 'b', and the ones that do are missing from most webfonts)
+  const txtRaw = (x, y, s, cls, anchor) =>
+    `<text x="${x}" y="${y}" class="${cls || 'bl-lab'}" text-anchor="${anchor || 'start'}">${s}</text>`;
+  const sub = (base, s) => base + `<tspan dy="3" font-size="8">${s}</tspan><tspan dy="-3">\u2009</tspan>`;
+  const line = (x1, y1, x2, y2, cls) =>
+    `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="${cls}"/>`;
+  const headDown = (x, y, cls) =>
+    `<polygon points="${x.toFixed(1)},${y} ${(x - 4.5).toFixed(1)},${y - 11} ${(x + 4.5).toFixed(1)},${y - 11}" class="${cls}"/>`;
+  const headUp = (x, y, cls) =>
+    `<polygon points="${x.toFixed(1)},${y} ${(x - 4.5).toFixed(1)},${y + 11} ${(x + 4.5).toFixed(1)},${y + 11}" class="${cls}"/>`;
+
+  function ground(x, yTop, halfWidth) {
+    let s = line(x - halfWidth, yTop, x + halfWidth, yTop, 'bl-grnd');
+    for (let t = -halfWidth; t < halfWidth; t += 7) {
+      s += line(x + t, yTop + 7, x + t + 6, yTop, 'bl-grnd');
+    }
+    return s;
+  }
+
+  function pinSupport(x) {
+    return `<polygon points="${x},${BY} ${x - 13},${BY + 20} ${x + 13},${BY + 20}" class="bl-sup"/>`
+      + ground(x, BY + 20, 22);
+  }
+  function rollerSupport(x) {
+    let s = `<polygon points="${x},${BY} ${x - 13},${BY + 14} ${x + 13},${BY + 14}" class="bl-sup"/>`;
+    for (const d of [-8, 0, 8]) s += `<circle cx="${x + d}" cy="${BY + 17.5}" r="3.4" class="bl-sup"/>`;
+    return s + ground(x, BY + 21, 22);
+  }
+  function fixedSupport(x, dir) {
+    let s = line(x, BY - 26, x, BY + 26, 'bl-sup');
+    for (let t = -26; t < 26; t += 7) s += line(x, BY + t + 6, x + dir * 7, BY + t, 'bl-grnd');
+    return s;
+  }
+
+  function diagram(xs, vals, zero, cls, unit, label) {
+    let peak = 0;
+    for (const v of vals) peak = Math.max(peak, Math.abs(v));
+    const k = peak > 1e-9 ? AMP / peak : 0;
+    let d = `M ${sx(xs[0]).toFixed(1)} ${zero}`;
+    for (let i = 0; i < xs.length; i++) {
+      d += ` L ${sx(xs[i]).toFixed(1)} ${(zero - vals[i] * k).toFixed(1)}`;
+    }
+    d += ` L ${sx(xs[xs.length - 1]).toFixed(1)} ${zero} Z`;
+
+    // peak annotation
+    let pi = 0;
+    for (let i = 0; i < vals.length; i++) if (Math.abs(vals[i]) > Math.abs(vals[pi])) pi = i;
+    const px = sx(xs[pi]), py = zero - vals[pi] * k;
+    const above = vals[pi] >= 0;
+
+    return `<path d="${d}" class="${cls}"/>`
+      + line(X0 - 10, zero, X1 + 10, zero, 'bl-axis')
+      + txt(X0, zero - AMP - 22, label, 'bl-lab')
+      + (peak > 1e-9
+        ? line(px, py, px, zero, 'bl-tick')
+          + txt(px, above ? py - 8 : py + 15,
+                fmt(vals[pi], Math.abs(vals[pi]) < 100 ? 2 : 1) + ' ' + unit, 'bl-val', 'middle')
+        : '');
+  }
+
+  function render() {
+    const r = solve();
+    const aX = sx(r.a);
+    let s = '';
+
+    /* ── span dimension ───────────────────────────── */
+    s += line(sx(0), 20, sx(0), 34, 'bl-tick')
+      + line(sx(L), 20, sx(L), 34, 'bl-tick')
+      + line(sx(0), 27, sx(L), 27, 'bl-axis')
+      + txt((sx(0) + sx(L)) / 2, 17, 'L = ' + fmt(L, 2) + ' m', 'bl-lab', 'middle');
+
+    /* ── distributed load ─────────────────────────── */
+    if (w > 0.01) {
+      s += line(sx(0), BY - 46, sx(L), BY - 46, 'bl-udl');
+      const steps = Math.max(4, Math.round((sx(L) - sx(0)) / 52));
+      for (let i = 0; i <= steps; i++) {
+        const x = sx(0) + (sx(L) - sx(0)) * i / steps;
+        s += line(x, BY - 46, x, BY - 9, 'bl-udl') + headDown(x, BY - 7, 'bl-udl');
+      }
+      s += txt(sx(L), BY - 54, 'w = ' + fmt(w, 1) + ' kN/m', 'bl-lab', 'end');
+    }
+
+    /* ── beam + end conditions ────────────────────── */
+    s += line(sx(0), BY, sx(L), BY, 'bl-beam');
+    if (sup === 'ss') s += pinSupport(sx(0)) + rollerSupport(sx(L));
+    else if (sup === 'cant') s += fixedSupport(sx(0), -1);
+    else s += fixedSupport(sx(0), -1) + fixedSupport(sx(L), 1);
+
+    /* ── deflected shape ──────────────────────────── */
+    let dPeak = 0;
+    for (const v of r.y) dPeak = Math.max(dPeak, Math.abs(v));
+    const dk = dPeak > 1e-12 ? 30 / dPeak : 0;
+    let dPath = '';
+    for (let i = 0; i <= r.n; i++) {
+      dPath += (i ? ' L ' : 'M ') + sx(r.xs[i]).toFixed(1) + ' ' + (BY - r.y[i] * dk).toFixed(1);
+    }
+    s += `<path d="${dPath}" class="bl-defl"/>`;
+    if (dPeak > 1e-12) {
+      // how many times larger than true scale the elastic curve is drawn
+      const exagg = Math.max(1, Math.round(dk / ((X1 - X0) / L)));
+      s += txt(X1, 17, 'DEFLECTION \u00d7' + exagg, 'bl-lab', 'end');
+    }
+
+    /* ── point load (draggable) ───────────────────── */
+    if (P > 0.01) {
+      s += line(aX, BY - 92, aX, BY - 9, 'bl-load') + headDown(aX, BY - 6, 'bl-load')
+        + txt(aX, BY - 100, 'P = ' + fmt(P, 1) + ' kN', 'bl-val', 'middle');
+    }
+    s += `<circle cx="${aX.toFixed(1)}" cy="${BY - 92}" r="18" class="bl-handle-hit" id="bl-hit"/>`
+      + `<circle cx="${aX.toFixed(1)}" cy="${BY - 92}" r="6.5" class="bl-handle" id="bl-handle"`
+      + ` tabindex="0" role="slider" aria-label="Load position along the span"`
+      + ` aria-valuemin="0" aria-valuemax="${fmt(L, 2)}" aria-valuenow="${fmt(r.a, 2)}"`
+      + ` aria-valuetext="${fmt(r.a, 2)} metres from the left support"/>`;
+
+    /* ── reactions ────────────────────────────────── */
+    const rxn = (x, val, tag) => line(x, BY + 56, x, BY + 32, 'bl-rxn') + headUp(x, BY + 30, 'bl-rxn')
+      + txtRaw(x, BY + 70, sub('R', tag) + '= ' + fmt(Math.abs(val), 1) + ' kN', 'bl-lab', 'middle');
+    s += rxn(sx(0), r.RA, 'A');
+    if (sup !== 'cant') s += rxn(sx(L), r.RB, 'B');
+
+    /* ── diagrams ─────────────────────────────────── */
+    s += diagram(r.xs, r.V, SZ, 'bl-shear', 'kN', 'SHEAR FORCE  V(x)');
+    s += diagram(r.xs, r.M, MZ, 'bl-moment', 'kN\u00b7m', 'BENDING MOMENT  M(x)');
+
+    plot.innerHTML = s;
+    bindHandle();
+    readout(r);
+  }
+
+  // ---------------------------------------------------------------- readout
+  function readout(r) {
+    dwgEl.textContent = 'DWG-S-BM01 \u00b7 ' + SUP_NAME[sup];
+    if (sup === 'cant') {
+      $('bl-r1-lab').innerHTML = 'R<sub>A</sub>';
+      $('bl-r2-lab').innerHTML = 'M<sub>A</sub> (fixed end)';
+      $('bl-r1').textContent = fmt(r.RA, 2) + ' kN';
+      $('bl-r2').textContent = fmt(r.MA, 2) + ' kN\u00b7m';
+    } else {
+      $('bl-r1-lab').innerHTML = 'R<sub>A</sub>';
+      $('bl-r2-lab').innerHTML = 'R<sub>B</sub>';
+      $('bl-r1').textContent = fmt(r.RA, 2) + ' kN';
+      $('bl-r2').textContent = fmt(r.RB, 2) + ' kN';
+    }
+    $('bl-v').textContent = fmt(Math.abs(r.vMax), 2) + ' kN';
+    $('bl-m').textContent = fmt(Math.abs(r.mMax), 2) + ' kN\u00b7m';
+
+    const dmm = Math.abs(r.dMax) * 1000;
+    const lim = L * 1000 / 360;
+    $('bl-d').textContent = fmt(dmm, 2) + ' mm @ ' + fmt(r.dAt, 2) + ' m';
+    $('bl-lim').textContent = fmt(lim, 2) + ' mm';
+
+    const chk = $('bl-check');
+    const pass = dmm <= lim;
+    chk.textContent = pass
+      ? 'SERVICEABILITY OK \u00b7 \u03b4 = L/' + (dmm > 1e-6 ? Math.round(L * 1000 / dmm) : '\u221e')
+      : 'EXCEEDS L/360 \u00b7 \u03b4 = L/' + Math.round(L * 1000 / dmm);
+    chk.classList.toggle('is-pass', pass);
+    chk.classList.toggle('is-fail', !pass);
+  }
+
+  // ---------------------------------------------------------------- input
+  function setA(frac) {
+    aFrac = Math.max(0, Math.min(1, frac));
+    $('bl-a').value = aFrac;
+    $('bl-a-out').textContent = fmt(aFrac * L, 2) + ' m';
+    render();
+  }
+
+  function fracFromClientX(clientX) {
+    const box = svg.getBoundingClientRect();
+    if (!box.width) return aFrac;
+    const vx = (clientX - box.left) / box.width * 900;   // client px -> viewBox units
+    return (vx - X0) / (X1 - X0);
+  }
+
+  let dragging = false;
+  function bindHandle() {
+    const hit = $('bl-hit'), knob = $('bl-handle');
+    const down = e => {
+      dragging = true;
+      if (hint) hint.classList.add('is-hidden');
+      if (e.cancelable) e.preventDefault();
+      setA(fracFromClientX(e.touches ? e.touches[0].clientX : e.clientX));
+    };
+    hit.addEventListener('mousedown', down);
+    knob.addEventListener('mousedown', down);
+    hit.addEventListener('touchstart', down, { passive: false });
+    knob.addEventListener('touchstart', down, { passive: false });
+    knob.addEventListener('keydown', e => {
+      const step = (e.shiftKey ? 10 : 1) / 100;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { setA(aFrac - step); e.preventDefault(); $('bl-handle').focus(); }
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { setA(aFrac + step); e.preventDefault(); $('bl-handle').focus(); }
+      else if (e.key === 'Home') { setA(0); e.preventDefault(); $('bl-handle').focus(); }
+      else if (e.key === 'End') { setA(1); e.preventDefault(); $('bl-handle').focus(); }
+    });
+  }
+
+  window.addEventListener('mousemove', e => { if (dragging) setA(fracFromClientX(e.clientX)); });
+  window.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    if (e.cancelable) e.preventDefault();
+    setA(fracFromClientX(e.touches[0].clientX));
+  }, { passive: false });
+  const up = () => { dragging = false; };
+  window.addEventListener('mouseup', up);
+  window.addEventListener('touchend', up);
+  window.addEventListener('touchcancel', up);
+
+  document.querySelectorAll('.bl-seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      sup = btn.dataset.sup;
+      document.querySelectorAll('.bl-seg-btn').forEach(b => {
+        const on = b === btn;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      render();
+    });
+  });
+
+  $('bl-L').addEventListener('input', e => {
+    L = parseFloat(e.target.value);
+    $('bl-L-out').textContent = fmt(L, 2) + ' m';
+    $('bl-a-out').textContent = fmt(aFrac * L, 2) + ' m';
+    render();
+  });
+  $('bl-P').addEventListener('input', e => {
+    P = parseFloat(e.target.value);
+    $('bl-P-out').textContent = fmt(P, 1) + ' kN';
+    render();
+  });
+  $('bl-w').addEventListener('input', e => {
+    w = parseFloat(e.target.value);
+    $('bl-w-out').textContent = fmt(w, 1) + ' kN/m';
+    render();
+  });
+  $('bl-a').addEventListener('input', e => {
+    if (hint) hint.classList.add('is-hidden');
+    setA(parseFloat(e.target.value));
+  });
+
+  render();
+})();
