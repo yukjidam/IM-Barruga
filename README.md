@@ -8,7 +8,7 @@ A portfolio site designed around a single idea: present a civil engineer's work 
 
 ## Concept
 
-The site opens on a blueprint that draws itself from walls, columns, doors, windows, and fixtures appearing stroke by stroke on a dark drafting-table background, complete with a title block, dimension notes, and revision tag, exactly as they'd appear on a real construction document. That floor plan then pans smoothly into the hero section, carrying the visual language of the drawing board through the rest of the site.
+The site opens on a blueprint in dark mode that draws itself from walls, columns, doors, windows, and fixtures appearing stroke by stroke on a dark drafting-table background, complete with a title block, dimension notes, and revision tag, exactly as they'd appear on a real construction document. That floor plan then pans smoothly into the hero section, carrying the visual language of the drawing board through the rest of the site.
 
 The result is a portfolio that doesn't just describe technical drafting work — it looks and feels like the medium itself.
 
