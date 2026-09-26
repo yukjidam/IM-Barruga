@@ -2,7 +2,7 @@
 
 **Live site:** [im-barruga.vercel.app](https://im-barruga.vercel.app)
 
-A portfolio site designed around a single idea: present a civil engineer's work the way a civil engineer would — as a set of drawings. Rather than a conventional resume-style layout, the site is built to feel like an architectural drawing sheet come to life, carrying that language through its intro, navigation, and project presentation.
+A portfolio site designed around a single idea: present a civil engineer's work the way a civil engineer would — as a set of drawings. Rather than a conventional resume-style layout, the site is built unique to feel like an architectural drawing sheet come to life, carrying that language through its intro, navigation, and project presentation.
 
 ---
 
