@@ -506,7 +506,7 @@
   <ul class="nav-links" id="nav-links">
     <li><a href="#projects">Projects</a></li>
     <li><a href="#process">Process</a></li>
-    <li><a href="#beam-lab">Beam Lab</a></li>
+    <li><a href="#sandbox">Sandbox</a></li>
     <li><a href="#education">Education</a></li>
     <li><a href="#skills">Skills</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -797,20 +797,29 @@
   </div>
 </section>
 
-<!-- BEAM LAB — live elastic beam analysis, solved in the browser -->
-<section id="beam-lab" class="beamlab-section">
+<!-- SANDBOX — Beam Lab + Blueprint Lab, switched by tabs -->
+<section id="sandbox" class="beamlab-section">
   <div class="sec-head reveal">
     <div class="sec-tag">Interactive</div>
-    <h2 class="sec-title">Beam Lab</h2>
+    <h2 class="sec-title">Sandbox</h2>
+    <span class="sb-beta" title="The sandbox is experimental and may not always work as expected."><span class="sb-beta-dot" aria-hidden="true"></span>Experimental<span class="sb-beta-long"> &middot; may not always work</span></span>
     <div class="sec-rule"></div>
   </div>
 
-  <p class="bl-intro reveal">
+  <div class="sb-tabs reveal" role="tablist" aria-label="Choose a lab">
+    <button type="button" class="sb-tab is-on" role="tab" id="sb-tab-beam" aria-selected="true" aria-controls="sb-panel-beam" data-lab="beam">Beam Lab</button>
+    <button type="button" class="sb-tab" role="tab" id="sb-tab-blueprint" aria-selected="false" aria-controls="sb-panel-blueprint" tabindex="-1" data-lab="blueprint">Blueprint Lab</button>
+  </div>
+
+  <div class="sb-panels reveal">
+  <div class="sb-panel" role="tabpanel" id="sb-panel-beam" aria-labelledby="sb-tab-beam">
+
+  <p class="bl-intro">
     Not a picture of an analysis but an actual one. Move the load, change the span, swap the end
     conditions, and the shear, moment and deflected shape are re-solved from scratch on every frame.
   </p>
 
-  <div class="bl-wrap reveal">
+  <div class="bl-wrap">
 
     <div class="bl-sheet">
       <div class="bl-titlebar">
@@ -872,7 +881,128 @@
     </aside>
 
   </div>
+  </div>
+
+  <div class="sb-panel" role="tabpanel" id="sb-panel-blueprint" aria-labelledby="sb-tab-blueprint" hidden>
+  <p class="bl-intro">
+    A blank drafting sheet. Draw walls, drag doors and windows into them, drop in columns, fixtures and
+    furniture, and watch the quantity take-off update as you go. It snaps the way AutoCAD does, and
+    whatever you draw can be exported as a sheet.
+  </p>
+
+  <div class="cd-wrap">
+    <div class="cd-sheet bl-sheet" id="cd-sheet" tabindex="0" aria-label="Blueprint drawing sheet. Press V, W, A or H to switch tools.">
+      <div class="bl-titlebar">
+        <span id="cd-dwg">DWG-A-BP01 &middot; Untitled plan</span>
+        <span class="bl-titlebar-right">Millimeters</span>
+      </div>
+
+      <div class="cd-bar" role="toolbar" aria-label="Drawing tools">
+        <button type="button" class="cd-btn" data-tool="select" aria-pressed="true" title="Select (V)">Select</button>
+        <button type="button" class="cd-btn" data-tool="wall" aria-pressed="false" title="Draw walls (W)">Wall</button>
+        <button type="button" class="cd-btn" data-tool="room" aria-pressed="false" title="Mark a room (A)">Room</button>
+        <button type="button" class="cd-btn" data-tool="pan" aria-pressed="false" title="Pan (H or hold Space)">Pan</button>
+        <span class="cd-sep" aria-hidden="true"></span>
+        <button type="button" class="cd-btn" id="cd-undo" title="Undo (Ctrl+Z)" aria-label="Undo">Undo</button>
+        <button type="button" class="cd-btn" id="cd-redo" title="Redo (Ctrl+Y)" aria-label="Redo">Redo</button>
+        <span class="cd-sep" aria-hidden="true"></span>
+        <button type="button" class="cd-btn" id="cd-rot" title="Rotate selection 90° (R)" aria-label="Rotate selection 90 degrees">&#8635; Rotate</button>
+        <button type="button" class="cd-btn" id="cd-fh" title="Flip left-right (F)" aria-label="Flip left to right">&#8596; Flip</button>
+        <button type="button" class="cd-btn" id="cd-fv" title="Flip top-bottom (Shift+F)" aria-label="Flip top to bottom">&#8597; Flip</button>
+        <span class="cd-sep" aria-hidden="true"></span>
+        <button type="button" class="cd-btn is-on" id="cd-snap" aria-pressed="true" title="Snap to a 100 mm grid">Snap</button>
+        <button type="button" class="cd-btn is-on" id="cd-ortho" aria-pressed="true" title="Lock walls to 0° / 90° (hold Shift to flip)">Ortho</button>
+        <span class="cd-sep" aria-hidden="true"></span>
+        <button type="button" class="cd-btn" id="cd-zout" aria-label="Zoom out">&minus;</button>
+        <button type="button" class="cd-btn" id="cd-zin" aria-label="Zoom in">+</button>
+        <button type="button" class="cd-btn" id="cd-fit" title="Fit drawing to the sheet">Fit</button>
+        <span class="cd-sep" aria-hidden="true"></span>
+        <button type="button" class="cd-btn" id="cd-fs" aria-pressed="false" title="Full screen">Full screen</button>
+      </div>
+
+      <div class="cd-main">
+        <div class="cd-pal" id="cd-pal" role="group" aria-label="Drag onto the sheet, or tap to arm"></div>
+        <div class="cd-resizer" id="cd-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the asset panel" aria-valuemin="96" aria-valuemax="360" tabindex="0" title="Drag to resize · double-click to reset"></div>
+        <div class="cd-canvas" id="cd-canvas" data-tool="select">
+          <svg id="cd-svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Drawing canvas"></svg>
+        </div>
+      </div>
+
+      <div class="cd-status">
+        <span id="cd-xy">X &mdash; Y &mdash;</span>
+        <span id="cd-msg" aria-live="polite"></span>
+        <span id="cd-zoom">100%</span>
+      </div>
+    </div>
+
+    <aside class="bl-panel cd-panel">
+      <div class="bl-panel-head">Project</div>
+      <label class="bl-ctl"><span class="bl-ctl-lab">Sheet title</span>
+        <input type="text" class="cd-text" id="cd-title" maxlength="40" value="Untitled plan"></label>
+
+      <div class="bl-panel-head">Wall thickness</div>
+      <div class="cd-seg3" role="group" aria-label="Wall thickness">
+        <button type="button" class="bl-seg-btn" data-wth="100" aria-pressed="false">100</button>
+        <button type="button" class="bl-seg-btn is-on" data-wth="150" aria-pressed="true">150</button>
+        <button type="button" class="bl-seg-btn" data-wth="200" aria-pressed="false">200</button>
+      </div>
+
+      <div class="bl-panel-head">Selection</div>
+      <div id="cd-props"></div>
+
+      <div class="bl-panel-head">Quantity take-off</div>
+      <dl class="bl-out">
+        <div><dt>Wall length</dt><dd id="cd-q-len">&mdash;</dd></div>
+        <div><dt>Net wall area</dt><dd id="cd-q-wall">&mdash;</dd></div>
+        <div><dt>Floor area</dt><dd id="cd-q-floor">&mdash;</dd></div>
+        <div><dt>Doors</dt><dd id="cd-q-door">&mdash;</dd></div>
+        <div><dt>Windows</dt><dd id="cd-q-win">&mdash;</dd></div>
+        <div><dt>Columns &middot; concrete</dt><dd id="cd-q-col">&mdash;</dd></div>
+      </dl>
+      <p class="bl-note">Walls at 3.0 m high, doors 2.1 m, windows 1.2 m. Floor area is the sum of the rooms you mark. Columns are 300&times;300.</p>
+
+      <div class="bl-panel-head">Samples</div>
+      <div class="cd-samples" role="group" aria-label="Load a sample drawing">
+        <button type="button" class="bl-seg-btn" data-sample="studio">Studio unit</button>
+        <button type="button" class="bl-seg-btn" data-sample="house">2-BR house</button>
+        <button type="button" class="bl-seg-btn" data-sample="office">Small office</button>
+        <button type="button" class="bl-seg-btn" data-sample="footing">Footing plan</button>
+      </div>
+      <p class="bl-note">Loading a sample replaces the sheet. Ctrl+Z brings your drawing back.</p>
+
+      <div class="bl-panel-head">Sheet</div>
+      <div class="cd-actions">
+        <button type="button" class="bl-seg-btn" id="cd-png">Export PNG</button>
+        <button type="button" class="bl-seg-btn" id="cd-pdf">Save as PDF</button>
+        <button type="button" class="bl-seg-btn" id="cd-clear">Clear sheet</button>
+      </div>
+      <p class="bl-note">Click the sheet to focus it, then scroll to zoom. Right-click and drag pans. Ctrl+click adds to the selection, Ctrl+A selects all. Ctrl+Z undoes, Ctrl+S saves. R rotates, F flips (Shift+F top-bottom), Delete removes. Your drawing is also kept in this browser.</p>
+    </aside>
+    <div class="cd-ghost" id="cd-ghost" hidden aria-hidden="true"></div>
+    <div class="cd-modal" id="cd-modal" role="dialog" aria-modal="true" aria-labelledby="cd-modal-t" hidden>
+      <div class="cd-modal-box">
+        <div class="bl-panel-head" id="cd-modal-t">Save sheet</div>
+        <label class="bl-ctl-lab cd-modal-lab" for="cd-modal-fname">File name</label>
+        <div class="cd-fname">
+          <input type="text" class="cd-text" id="cd-modal-fname" maxlength="60" autocomplete="off" spellcheck="false" placeholder="blueprint">
+          <b id="cd-modal-ext" aria-hidden="true">.png</b>
+        </div>
+        <div class="bl-ctl-lab cd-modal-lab" id="cd-modal-fmt">Format</div>
+        <div class="cd-modal-btns" role="group" aria-labelledby="cd-modal-fmt">
+          <button type="button" class="bl-seg-btn is-on" data-save="png" aria-pressed="true">PNG image</button>
+          <button type="button" class="bl-seg-btn" data-save="pdf" aria-pressed="false">PDF document</button>
+        </div>
+        <button type="button" class="bl-seg-btn cd-modal-ok" id="cd-modal-ok">Save</button>
+        <button type="button" class="cd-btn" id="cd-modal-x">Cancel</button>
+      </div>
+    </div>
+  </div>
+  </div>
+  </div>
+  <p class="sb-beta-note reveal" role="note"><b>Experimental.</b> The sandbox is still a work in progress, so some features may glitch or stop working. If something breaks, reload the page or press &ldquo;Clear sheet&rdquo; to start fresh.</p>
 </section>
+
+
 
 <!-- EDUCATION -->
 <section id="education" class="edu-section">

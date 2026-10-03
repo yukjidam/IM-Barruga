@@ -1814,3 +1814,928 @@ bars.forEach(b => barObs.observe(b));
 
   render();
 })();
+
+/* ══════════════════════════════════════════════════
+   BLUEPRINT LAB
+   A drag-and-drop plan sandbox. Walls are drawn with
+   grid / endpoint / midpoint snapping and an ortho lock;
+   doors and windows snap into the nearest wall and cut
+   an opening; columns, stairs, fixtures and furniture
+   drop anywhere. A quantity take-off updates live.
+
+   The sheet's own CSS lives in this file (CSS below) so
+   the PNG export can resolve the same rules against the
+   current theme. All colours are the shared tokens, so
+   Blueprint ⇄ As-Built works with no extra JS.
+   ═══════════════════════════════════════ */
+(function () {
+  const svg = document.getElementById('cd-svg');
+  if (!svg) return;
+  const $ = id => document.getElementById(id);
+  const canvas = $('cd-canvas'), sheet = $('cd-sheet'), ghost = $('cd-ghost');
+  const KEY = 'bplab:v1';
+
+  /* ── drawing styles (tokens resolved at export) ── */
+  const CSS = `
+.cd-gm{stroke:var(--border);stroke-width:1;fill:none}
+.cd-gM{stroke:var(--muted);stroke-width:1;opacity:.28;fill:none}
+.cd-wall{fill:var(--text)}
+.cd-cut{fill:var(--bg)}
+.cd-ln,.cd-tl,.cd-fx,.cd-col,.cd-sel,.cd-room,.cd-rub,.cd-pv{vector-effect:non-scaling-stroke}
+.cd-ln{fill:none;stroke:var(--text);stroke-width:1.2}
+.cd-tl{fill:none;stroke:var(--teal);stroke-width:1.2}
+.cd-fx{fill:var(--surface2);stroke:var(--text);stroke-width:1.2}
+.cd-col{fill:var(--gold);stroke:var(--gold);stroke-width:1}
+.cd-room{fill:var(--teal-dim);stroke:var(--teal);stroke-width:1;stroke-dasharray:6 4}
+.cd-room.on{stroke:var(--gold);stroke-width:1.6}
+.cd-sel{fill:none;stroke:var(--gold);stroke-width:1.6}
+.cd-hit{fill:transparent}
+.cd-t{font:10px var(--f-mono);fill:var(--muted)}
+.cd-tv{fill:var(--gold)}
+.cd-rub{fill:none;stroke:var(--gold);stroke-width:1.4;stroke-dasharray:6 4}
+.cd-pv{fill:var(--gold-dim);stroke:var(--gold);stroke-width:1.4;stroke-dasharray:4 3}
+.cd-snap{fill:none;stroke:var(--teal);stroke-width:1.6}
+.cd-cross{stroke:var(--teal);stroke-width:1;opacity:.35}
+.cd-grip{fill:var(--bg);stroke:var(--gold);stroke-width:1.6;cursor:move}
+.cd-bad{fill:#d9645c;font:10px var(--f-mono)}`;
+  const st = document.createElement('style');
+  st.textContent = CSS;
+  document.head.appendChild(st);
+
+  /* ── model ── */
+  let S = { objs: [], id: 1, title: 'Untitled plan' };
+  let view = { z: 0.09, x: 40, y: 40 };
+  let sel = new Set(), tool = 'select', armed = null, chain = null, drag = null, dragP = null;
+  let needFit = false;
+  let hist = [], hi = -1, ortho = true, gridSnap = true, wallTh = 150, space = false, shift = false;
+  let cur = { raw: [0, 0], p: [0, 0], snap: null, px: [-9, -9], on: false };
+
+  const byId = id => S.objs.find(o => o.id === id);
+  const wl = w => Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmt = (v, d) => v.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const S2W = (x, y) => [(x - view.x) / view.z, (y - view.y) / view.z];
+
+  /* ── symbols (local mm, centred on origin) ── */
+  const R = (x, y, w, h, c) => `<rect class="${c || 'cd-fx'}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+  const E = (cx, cy, rx, ry) => `<ellipse class="cd-fx" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`;
+  const RR = (x, y, w, h, r, c) => `<rect class="${c || 'cd-fx'}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"/>`;
+  const CI = (cx, cy, r, c) => `<circle class="${c || 'cd-fx'}" cx="${cx}" cy="${cy}" r="${r}"/>`;
+  const PT = (d, c) => `<path class="${c || 'cd-ln'}" d="${d}"/>`;
+  const SY = {
+    column: { n: 'Column', w: 300, d: 300, f: () => R(-150, -150, 300, 300, 'cd-col') },
+    stairs: { n: 'Stairs', w: 1000, d: 2800, f: () => {
+      let s = R(-500, -1400, 1000, 2800);
+      for (let i = 1; i < 10; i++) s += `<path class="cd-ln" d="M-500 ${-1400 + i * 280}H500"/>`;
+      return s + `<path class="cd-tl" d="M0 1200V-1100M-160 -950L0 -1150L160 -950"/>`;
+    } },
+    wc: { n: 'Water closet', w: 420, d: 700, f: () => R(-210, -350, 420, 160) + E(0, 50, 190, 260) + E(0, 50, 135, 195) },
+    lav: { n: 'Lavatory', w: 500, d: 420, f: () => R(-250, -210, 500, 420) + E(0, 25, 175, 125) + `<circle class="cd-tl" cx="0" cy="-150" r="20"/>` },
+    bed: { n: 'Bed', w: 1500, d: 1900, f: () => R(-750, -950, 1500, 1900) + R(-750, -950, 1500, 90) + R(-650, -820, 570, 340) + R(80, -820, 570, 340) + `<path class="cd-ln" d="M-750 -150H750"/>` },
+    table: { n: 'Dining table', w: 1500, d: 1500, f: () => R(-750, -400, 1500, 800) + R(-600, -750, 450, 400) + R(150, -750, 450, 400) + R(-600, 350, 450, 400) + R(150, 350, 450, 400) },
+    sofa: { n: 'Sofa', w: 2000, d: 900, f: () => R(-1000, -450, 2000, 900) + R(-1000, -450, 2000, 150) + R(-1000, -300, 150, 750) + R(850, -300, 150, 750) + `<path class="cd-ln" d="M-333 -300V450M333 -300V450"/>` },
+    colround: { n: 'Round column', w: 300, d: 300, f: () => CI(0, 0, 150, 'cd-col') },
+    footing: { n: 'Footing', w: 1200, d: 1200, f: () => R(-600, -600, 1200, 1200) + R(-150, -150, 300, 300, 'cd-col') },
+    elev: { n: 'Elevator', w: 1800, d: 1800, f: () => R(-900, -900, 1800, 1800) + R(-700, -700, 1400, 1400) + PT('M-700 -700L700 700M700 -700L-700 700') },
+    spiral: { n: 'Spiral stairs', w: 1800, d: 1800, f: () => {
+      let s = CI(0, 0, 900) + CI(0, 0, 120);
+      for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6, c = Math.cos(a), n = Math.sin(a); s += PT(`M${(120 * c).toFixed(1)} ${(120 * n).toFixed(1)}L${(900 * c).toFixed(1)} ${(900 * n).toFixed(1)}`); }
+      return s;
+    } },
+    shower: { n: 'Shower', w: 900, d: 900, f: () => R(-450, -450, 900, 900) + PT('M-450 -450L450 450', 'cd-tl') + CI(0, 0, 40) },
+    tub: { n: 'Bathtub', w: 1700, d: 750, f: () => R(-850, -375, 1700, 750) + RR(-780, -305, 1560, 610, 220) + CI(-660, 0, 28, 'cd-tl') },
+    sink: { n: 'Kitchen sink', w: 1200, d: 600, f: () => R(-600, -300, 1200, 600) + RR(-540, -220, 480, 400, 30) + RR(60, -220, 480, 400, 30) + CI(0, -255, 20, 'cd-tl') },
+    stove: { n: 'Range / stove', w: 600, d: 600, f: () => R(-300, -300, 600, 600) + CI(-150, -150, 80) + CI(150, -150, 80) + CI(-150, 150, 80) + CI(150, 150, 80) },
+    fridge: { n: 'Refrigerator', w: 700, d: 700, f: () => R(-350, -350, 700, 700) + PT('M-350 -120H350') + PT('M250 -250V-190M250 -80V-20', 'cd-tl') },
+    counter: { n: 'Counter', w: 2400, d: 600, f: () => R(-1200, -300, 2400, 600) + PT('M-1200 -230H1200', 'cd-tl') },
+    washer: { n: 'Washer', w: 600, d: 600, f: () => R(-300, -300, 600, 600) + CI(0, 40, 200) + CI(0, 40, 130, 'cd-tl') + CI(-190, -220, 22, 'cd-tl') },
+    bedS: { n: 'Single bed', w: 900, d: 1900, f: () => R(-450, -950, 900, 1900) + R(-450, -950, 900, 90) + R(-360, -820, 720, 340) + PT('M-450 -150H450') },
+    wardrobe: { n: 'Wardrobe', w: 1200, d: 600, f: () => R(-600, -300, 1200, 600) + PT('M-600 -220H600M0 -220V300') + PT('M-600 300L-300 -220L0 300M0 300L300 -220L600 300', 'cd-tl') },
+    nightstand: { n: 'Nightstand', w: 450, d: 450, f: () => R(-225, -225, 450, 450) + CI(0, 0, 110, 'cd-tl') },
+    desk: { n: 'Desk + chair', w: 1400, d: 1200, f: () => R(-700, -600, 1400, 700) + PT('M-700 -520H700', 'cd-tl') + RR(-225, 180, 450, 420, 60) },
+    chair: { n: 'Chair', w: 450, d: 450, f: () => R(-225, -225, 450, 450) + R(-225, -225, 450, 90) },
+    armchair: { n: 'Armchair', w: 900, d: 900, f: () => R(-450, -450, 900, 900) + R(-450, -450, 900, 160) + R(-450, -290, 140, 740) + R(310, -290, 140, 740) },
+    coffee: { n: 'Coffee table', w: 1100, d: 600, f: () => RR(-550, -300, 1100, 600, 40) + RR(-480, -230, 960, 460, 20, 'cd-tl') },
+    tv: { n: 'TV stand', w: 1500, d: 450, f: () => R(-750, -225, 1500, 450) + R(-450, -140, 900, 60, 'cd-col') },
+    rtable: { n: 'Round table', w: 1800, d: 1800, f: () => CI(0, 0, 500) + CI(0, -700, 200) + CI(700, 0, 200) + CI(0, 700, 200) + CI(-700, 0, 200) },
+    car: { n: 'Car', w: 1800, d: 4500, f: () => RR(-900, -2250, 1800, 4500, 320) + PT('M-720 -1250H720L800 -650H-800Z') + PT('M-720 1450H720L800 850H-800Z') + PT('M-800 -650V850M800 -650V850') },
+    plant: { n: 'Plant', w: 500, d: 500, f: () => CI(0, 0, 250) + PT('M0 -250V250M-250 0H250M-177 -177L177 177M177 -177L-177 177', 'cd-tl') },
+    ac: { n: 'Split A/C', w: 1000, d: 300, f: () => R(-500, -150, 1000, 300) + PT('M-500 60H500') + PT('M-420 105H420', 'cd-tl') }
+  };
+  /* wall openings: default width (mm), height for the take-off (m), door? */
+  const OP = {
+    door: { n: 'Door', w: 900, h: 2.1, min: 600, dr: 1 },
+    ddoor: { n: 'Double door', w: 1500, h: 2.1, min: 1200, dr: 1 },
+    sdoor: { n: 'Sliding door', w: 1800, h: 2.1, min: 1200, dr: 1 },
+    window: { n: 'Window', w: 1200, h: 1.2, min: 600 },
+    fwin: { n: 'Fixed window', w: 1800, h: 1.2, min: 600 }
+  };
+  const PAL = [...Object.keys(OP), 'column', 'colround', 'footing', 'stairs', 'spiral', 'elev', 'wc', 'lav', 'shower', 'tub', 'sink', 'stove', 'fridge', 'counter', 'washer',
+    'bed', 'bedS', 'nightstand', 'wardrobe', 'desk', 'chair', 'table', 'rtable', 'sofa', 'armchair', 'coffee', 'tv', 'ac', 'plant', 'car'];
+  const NAME = Object.assign(Object.fromEntries(Object.entries(OP).map(([k, v]) => [k, v.n])), Object.fromEntries(Object.entries(SY).map(([k, v]) => [k, v.n])));
+
+  function openSVG(o, th) {
+    const W = o.w, h = th / 2, hs = o.hs || 1, sd = o.side || 1;
+    let s = `<rect class="cd-cut" x="${-W / 2}" y="${-h - 2}" width="${W}" height="${th + 4}"/>`;
+    const jamb = `<path class="cd-ln" d="M${-W / 2} ${-h}V${h}M${W / 2} ${-h}V${h}"/>`;
+    const leaf = (x0, dir, r) => `<path class="cd-ln" d="M${x0} 0V${sd * r}"/><path class="cd-tl" d="M${x0} ${sd * r}A${r} ${r} 0 0 ${sd * dir < 0 ? 1 : 0} ${x0 + dir * r} 0"/>`;
+    if (o.k === 'door') s += jamb + leaf(-hs * W / 2, hs, W);
+    else if (o.k === 'ddoor') s += jamb + leaf(-W / 2, 1, W / 2) + leaf(W / 2, -1, W / 2);
+    else if (o.k === 'sdoor') {
+      const t = th / 3, pw = W / 2 + W / 16, y1 = hs > 0 ? -1.5 * t : 0.5 * t, y2 = hs > 0 ? 0.5 * t : -1.5 * t;
+      s += jamb + `<rect class="cd-tl" x="${-W / 2}" y="${y1}" width="${pw}" height="${t}"/><rect class="cd-tl" x="${W / 2 - pw}" y="${y2}" width="${pw}" height="${t}"/>`;
+    } else if (o.k === 'fwin') {
+      s += `<rect class="cd-tl" x="${-W / 2}" y="${-h}" width="${W}" height="${th}"/><path class="cd-tl" d="M${-W / 2} 0H${W / 2}"/>`;
+    } else {
+      s += `<rect class="cd-tl" x="${-W / 2}" y="${-h}" width="${W}" height="${th}"/>`
+        + `<path class="cd-tl" d="M${-W / 2} ${-th / 6}H${W / 2}M${-W / 2} ${th / 6}H${W / 2}"/>`;
+    }
+    return s;
+  }
+
+  /* palette thumbnails reuse the real drawing code */
+  function icon(k) {
+    if (OP[k]) {
+      const o = { k, w: Math.min(OP[k].w, 1500), side: 1, hs: 1 };
+      return `<svg viewBox="-800 -250 1600 1250" aria-hidden="true">${R(-800, -75, 1600, 150, 'cd-wall')}${openSVG(o, 150)}</svg>`;
+    }
+    const s = SY[k], p = 60;
+    return `<svg viewBox="${-s.w / 2 - p} ${-s.d / 2 - p} ${s.w + 2 * p} ${s.d + 2 * p}" aria-hidden="true">${s.f()}</svg>`;
+  }
+  $('cd-pal').innerHTML = PAL.map(k => `<button type="button" class="cd-pal-item" data-k="${k}" aria-label="${NAME[k]}">${icon(k)}<span>${NAME[k]}</span></button>`).join('');
+
+  /* ── geometry helpers ── */
+  function oPos(o) {
+    const w = byId(o.wall);
+    if (!w) return null;
+    const L = wl(w) || 1, ux = (w.b[0] - w.a[0]) / L, uy = (w.b[1] - w.a[1]) / L, h = o.w / 2 / L;
+    const s = h >= 0.5 ? 0.5 : Math.min(1 - h, Math.max(h, o.s));
+    return { x: w.a[0] + ux * L * s, y: w.a[1] + uy * L * s, ang: Math.atan2(uy, ux) * 180 / Math.PI, th: w.th };
+  }
+  function hostAt(p, maxPx) {
+    let best = null;
+    for (const w of S.objs) {
+      if (w.t !== 'wall') continue;
+      const L = wl(w);
+      if (L < 1) continue;
+      const ux = (w.b[0] - w.a[0]) / L, uy = (w.b[1] - w.a[1]) / L, rx = p[0] - w.a[0], ry = p[1] - w.a[1];
+      const t = Math.max(0, Math.min(L, rx * ux + ry * uy));
+      const d = Math.hypot(rx - ux * t, ry - uy * t) * view.z;
+      if (d < maxPx && (!best || d < best.d)) best = { w, d, s: Math.round(t / 50) * 50 / L, side: (rx * -uy + ry * ux) >= 0 ? 1 : -1 };
+    }
+    return best;
+  }
+  function wallPoly(w, pad) {
+    const L = wl(w) || 1, ux = (w.b[0] - w.a[0]) / L, uy = (w.b[1] - w.a[1]) / L, e = w.th / 2 + pad;
+    const nx = -uy * e, ny = ux * e, ex = ux * e, ey = uy * e;
+    return [[w.a[0] - ex + nx, w.a[1] - ey + ny], [w.b[0] + ex + nx, w.b[1] + ey + ny], [w.b[0] + ex - nx, w.b[1] + ey - ny], [w.a[0] - ex - nx, w.a[1] - ey - ny]]
+      .map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  }
+  function bounds() {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    const add = (x, y, r) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
+    for (const o of S.objs) {
+      if (o.t === 'wall') { add(o.a[0], o.a[1], o.th); add(o.b[0], o.b[1], o.th); }
+      else if (o.t === 'room') { add(o.x, o.y, 0); add(o.x + o.w, o.y + o.h, 0); }
+      else if (o.t === 'sym') add(o.x, o.y, Math.max(SY[o.k].w, SY[o.k].d) / 2);
+    }
+    return x0 > x1 ? null : { x0, y0, x1, y1 };
+  }
+
+  /* ── snapping ── */
+  function snapPt(raw) {
+    const tol = 12 / view.z;
+    let best = null, bd = tol;
+    for (const o of S.objs) {
+      if (o.t !== 'wall') continue;
+      const mid = [(o.a[0] + o.b[0]) / 2, (o.a[1] + o.b[1]) / 2];
+      for (const [pt, kind] of [[o.a, 'end'], [o.b, 'end'], [mid, 'mid']]) {
+        const d = Math.hypot(pt[0] - raw[0], pt[1] - raw[1]);
+        if (d < bd) { bd = d; best = { p: pt.slice(), kind }; }
+      }
+    }
+    if (best) return best;
+    let p = gridSnap ? [Math.round(raw[0] / 100) * 100, Math.round(raw[1] / 100) * 100] : raw.slice();
+    if (chain && (ortho !== shift)) {
+      if (Math.abs(p[0] - chain.a[0]) >= Math.abs(p[1] - chain.a[1])) p[1] = chain.a[1]; else p[0] = chain.a[0];
+    }
+    return { p, kind: null };
+  }
+
+  /* ── scene (shared by the live view and the PNG export) ── */
+  function scene(v, ex) {
+    const z = v.z, T = (x, y) => [x * z + v.x, y * z + v.y];
+    let rooms = '', walls = '', ops = '', syms = '', txt = '';
+    for (const o of S.objs) {
+      const on = !ex && sel.has(o.id);
+      if (o.t === 'room') {
+        rooms += `<g data-id="${o.id}"><rect class="cd-room${on ? ' on' : ''}" x="${o.x}" y="${o.y}" width="${o.w}" height="${o.h}" pointer-events="stroke"/></g>`;
+        const c = T(o.x + o.w / 2, o.y + o.h / 2);
+        txt += `<text class="cd-t" data-id="${o.id}" x="${c[0]}" y="${c[1]}" text-anchor="middle">${esc(o.name)}</text>`
+          + `<text class="cd-t cd-tv" data-id="${o.id}" x="${c[0]}" y="${c[1] + 13}" text-anchor="middle">${fmt(o.w * o.h / 1e6, 2)} m²</text>`;
+      } else if (o.t === 'wall') {
+        walls += `<g data-id="${o.id}"><polygon class="cd-hit" points="${wallPoly(o, 8 / z)}"/><polygon class="cd-wall" points="${wallPoly(o, 0)}"/>${on ? `<polygon class="cd-sel" points="${wallPoly(o, 0)}"/>` : ''}</g>`;
+        if (on) {
+          const m = T((o.a[0] + o.b[0]) / 2, (o.a[1] + o.b[1]) / 2);
+          txt += `<text class="cd-t cd-tv" x="${m[0]}" y="${m[1] - 12}" text-anchor="middle">${fmt(wl(o), 0)}</text>`;
+        }
+      } else if (o.t === 'open') {
+        const p = oPos(o);
+        if (!p) continue;
+        ops += `<g data-id="${o.id}" transform="translate(${p.x} ${p.y}) rotate(${p.ang})">${openSVG(o, p.th)}<rect class="cd-hit" x="${-o.w / 2}" y="${-p.th / 2 - 120}" width="${o.w}" height="${p.th + 240}"/>${on ? `<rect class="cd-sel" x="${-o.w / 2}" y="${-p.th / 2 - 40}" width="${o.w}" height="${p.th + 80}"/>` : ''}</g>`;
+      } else if (o.t === 'sym') {
+        const s = SY[o.k];
+        syms += `<g data-id="${o.id}" transform="translate(${o.x} ${o.y}) rotate(${o.rot || 0})${o.fl ? ' scale(-1 1)' : ''}">${s.f()}<rect class="cd-hit" x="${-s.w / 2}" y="${-s.d / 2}" width="${s.w}" height="${s.d}"/>${on ? `<rect class="cd-sel" x="${-s.w / 2 - 40}" y="${-s.d / 2 - 40}" width="${s.w + 80}" height="${s.d + 80}"/>` : ''}</g>`;
+      }
+    }
+    return `<g transform="translate(${v.x} ${v.y}) scale(${z})">${rooms}${walls}${ops}${syms}</g>${txt}`;
+  }
+
+  function paint() {
+    const r = canvas.getBoundingClientRect(), w = r.width, h = r.height, z = view.z;
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const stp = [100, 500, 1000, 5000].find(s => s * z >= 9) || 5000;
+    let mi = '', ma = '';
+    for (let x = Math.ceil(-view.x / z / stp) * stp; x * z + view.x <= w; x += stp) { const q = `M${(x * z + view.x).toFixed(1)} 0V${h}`; if (x % 1000) mi += q; else ma += q; }
+    for (let y = Math.ceil(-view.y / z / stp) * stp; y * z + view.y <= h; y += stp) { const q = `M0 ${(y * z + view.y).toFixed(1)}H${w}`; if (y % 1000) mi += q; else ma += q; }
+    let o = `<path class="cd-gm" d="${mi}"/><path class="cd-gM" d="${ma}"/>` + scene(view);
+    const T = p => [p[0] * z + view.x, p[1] * z + view.y];
+    let ov = '';
+
+    if (chain) {
+      const a = T(chain.a), b = T(cur.p), L = Math.hypot(cur.p[0] - chain.a[0], cur.p[1] - chain.a[1]);
+      ov += `<line class="cd-rub" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"/>`
+        + `<text class="cd-t cd-tv" x="${(a[0] + b[0]) / 2}" y="${(a[1] + b[1]) / 2 - 10}" text-anchor="middle">${fmt(L, 0)} mm</text>`;
+    }
+    if (drag && drag.t === 'room') {
+      const a = T(drag.a), b = T(drag.b);
+      ov += `<rect class="cd-rub" x="${Math.min(a[0], b[0])}" y="${Math.min(a[1], b[1])}" width="${Math.abs(a[0] - b[0])}" height="${Math.abs(a[1] - b[1])}"/>`
+        + `<text class="cd-t cd-tv" x="${(a[0] + b[0]) / 2}" y="${(a[1] + b[1]) / 2}" text-anchor="middle">${fmt(Math.abs(drag.a[0] - drag.b[0]) / 1000, 2)} × ${fmt(Math.abs(drag.a[1] - drag.b[1]) / 1000, 2)} m</text>`;
+    }
+    if (armed && cur.on) {
+      const isO = !!OP[armed.k];
+      if (isO) {
+        const hs = hostAt(cur.raw, 40);
+        if (hs) {
+          const o2 = { k: armed.k, w: OP[armed.k].w, side: hs.side, hs: 1, wall: hs.w.id, s: hs.s }, p = oPos(o2);
+          ov += `<g transform="translate(${view.x} ${view.y}) scale(${z})"><g opacity=".75" transform="translate(${p.x} ${p.y}) rotate(${p.ang})">${openSVG(o2, p.th)}<rect class="cd-pv" x="${-o2.w / 2}" y="${-p.th / 2 - 40}" width="${o2.w}" height="${p.th + 80}"/></g></g>`;
+        } else {
+          const c = cur.px;
+          ov += `<text class="cd-bad" x="${c[0] + 14}" y="${c[1] - 10}">Drop on a wall</text>`;
+        }
+      } else {
+        ov += `<g transform="translate(${view.x} ${view.y}) scale(${z})"><g opacity=".6" transform="translate(${cur.p[0]} ${cur.p[1]})">${SY[armed.k].f()}</g></g>`;
+      }
+    }
+    if (cur.on && !armed && tool !== 'pan') {
+      ov += `<line class="cd-cross" x1="${cur.px[0]}" y1="0" x2="${cur.px[0]}" y2="${h}"/><line class="cd-cross" x1="0" y1="${cur.px[1]}" x2="${w}" y2="${cur.px[1]}"/>`;
+      const c = T(cur.p);
+      if (cur.snap) ov += cur.snap === 'end'
+        ? `<rect class="cd-snap" x="${c[0] - 6}" y="${c[1] - 6}" width="12" height="12"/>`
+        : `<path class="cd-snap" d="M${c[0] - 7} ${c[1] + 5}H${c[0] + 7}L${c[0]} ${c[1] - 7}Z"/>`;
+    }
+    o += `<g pointer-events="none">${ov}</g>`;
+
+    if (tool === 'select' && sel.size === 1) {
+      const o1 = byId([...sel][0]);
+      let gr = [];
+      if (o1 && o1.t === 'wall') gr = [['a', o1.a], ['b', o1.b]];
+      if (o1 && o1.t === 'room') gr = [[0, [o1.x, o1.y]], [1, [o1.x + o1.w, o1.y]], [2, [o1.x + o1.w, o1.y + o1.h]], [3, [o1.x, o1.y + o1.h]]];
+      for (const [id, p] of gr) { const c = T(p); o += `<rect class="cd-grip" data-grip="${id}" data-id="${o1.id}" x="${c[0] - 5}" y="${c[1] - 5}" width="10" height="10"/>`; }
+    }
+    svg.innerHTML = o;
+    $('cd-xy').textContent = cur.on ? `X ${fmt(cur.p[0], 0)}  Y ${fmt(cur.p[1], 0)} mm` : 'X —  Y —';
+    $('cd-zoom').textContent = Math.round(z / 0.09 * 100) + '%';
+  }
+  let raf = 0;
+  const draw = () => { raf || (raf = requestAnimationFrame(() => { raf = 0; paint(); })); };
+
+  /* ── history, persistence, take-off ── */
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+  function commit() {
+    hist = hist.slice(0, hi + 1);
+    hist.push(JSON.stringify(S));
+    if (hist.length > 80) hist.shift();
+    hi = hist.length - 1;
+    save(); refresh();
+  }
+  function jump(d) {
+    const n = hi + d;
+    if (n < 0 || n >= hist.length) return;
+    hi = n; S = JSON.parse(hist[hi]); sel.clear(); save(); refresh();
+  }
+  function takeoff() {
+    let len = 0, area = 0, floor = 0, d = 0, wi = 0, c = 0;
+    for (const o of S.objs) {
+      if (o.t === 'wall') len += wl(o) / 1000;
+      else if (o.t === 'room') floor += o.w * o.h / 1e6;
+      else if (o.t === 'open' && byId(o.wall)) { const q = OP[o.k] || OP.window; if (q.dr) d++; else wi++; area -= o.w / 1000 * q.h; }
+      else if (o.t === 'sym' && o.k === 'column') c++;
+    }
+    area += len * 3;
+    $('cd-q-len').textContent = fmt(len, 2) + ' m';
+    $('cd-q-wall').textContent = fmt(Math.max(0, area), 2) + ' m²';
+    $('cd-q-floor').textContent = fmt(floor, 2) + ' m²';
+    $('cd-q-door').textContent = d;
+    $('cd-q-win').textContent = wi;
+    $('cd-q-col').textContent = c + ' · ' + fmt(c * 0.09 * 3, 2) + ' m³';
+  }
+  function refresh() {
+    takeoff(); props(); draw();
+    $('cd-dwg').textContent = 'DWG-A-BP01 · ' + S.title;
+    $('cd-undo').disabled = hi <= 0; $('cd-redo').disabled = hi >= hist.length - 1;
+  }
+
+  /* ── properties panel ── */
+  function props() {
+    const box = $('cd-props'), ids = [...sel], o = ids.length === 1 ? byId(ids[0]) : null;
+    ['cd-rot', 'cd-fh', 'cd-fv'].forEach(id => { $(id).disabled = !ids.length; });
+    if (!ids.length) { box.innerHTML = '<p class="bl-note" style="margin:0">Nothing selected. Click an object to edit it, or pick a tool.</p>'; return; }
+    if (!o) { box.innerHTML = `<p class="bl-note" style="margin:0">${ids.length} objects selected. Drag to move, Rotate / Flip as a group, Delete to remove.</p>`; return; }
+    const slider = (id, lab, min, max, step, val, unit) => `<label class="bl-ctl"><span class="bl-ctl-lab">${lab}<b id="${id}-o">${val} ${unit}</b></span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></label>`;
+    let h = '';
+    if (o.t === 'wall') h = `<div class="bl-ctl-lab" style="margin-bottom:8px">Wall length<b>${fmt(wl(o), 0)} mm</b></div>` + slider('cd-p-th', 'Thickness', 100, 300, 50, o.th, 'mm');
+    else if (o.t === 'open') h = slider('cd-p-w', NAME[o.k] + ' width', (OP[o.k] || OP.window).min, 3000, 100, o.w, 'mm') + '<p class="bl-note" style="margin:0">Flip (F) swaps the hinge side. Rotate (R) swaps the swing side.</p>';
+    else if (o.t === 'room') h = `<label class="bl-ctl"><span class="bl-ctl-lab">Room name</span><input type="text" class="cd-text" id="cd-p-name" maxlength="28" value="${esc(o.name)}"></label><div class="bl-ctl-lab">Area<b>${fmt(o.w * o.h / 1e6, 2)} m²</b></div>`;
+    else h = `<div class="bl-ctl-lab" style="margin-bottom:8px">${NAME[o.k]}<b>${o.w} × ${o.d || SY[o.k].d} mm</b></div><p class="bl-note" style="margin:0">Rotate (R) turns it 90°. Flip (F) mirrors it.</p>`;
+    box.innerHTML = h;
+    const bind = (id, fn, out) => { const el = $(id); if (!el) return; el.addEventListener('input', () => { fn(el.value); if (out) $(id + '-o').textContent = el.value + ' mm'; draw(); takeoff(); }); el.addEventListener('change', commit); };
+    bind('cd-p-th', v => { o.th = +v; }, 1); bind('cd-p-w', v => { o.w = +v; }, 1); bind('cd-p-name', v => { o.name = v; });
+  }
+
+  /* ── actions ── */
+  const msg = t => { $('cd-msg').textContent = t; };
+  const HINT = { select: 'Click to select · Ctrl+click to add more · drag to move · drag a grip to reshape', wall: 'Click to start a wall, click again to continue · double-click or Esc to finish', room: 'Drag a rectangle to mark a room', pan: 'Drag to pan the sheet' };
+  function setTool(t) {
+    tool = t; armed = null; chain = null; drag = null;
+    document.querySelectorAll('[data-tool]').forEach(b => { const on = b.dataset.tool === t; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on); });
+    document.querySelectorAll('.cd-pal-item').forEach(b => b.classList.remove('is-on'));
+    canvas.dataset.tool = t; msg(HINT[t]); draw();
+  }
+  function arm(k, sticky) {
+    armed = { k, sticky }; chain = null;
+    document.querySelectorAll('.cd-pal-item').forEach(b => b.classList.toggle('is-on', sticky && b.dataset.k === k));
+    msg(OP[k] ? NAME[k] + ': click a wall to place · Esc to stop' : NAME[k] + ': click to place · Esc to stop');
+    draw();
+  }
+  function disarm() { armed = null; document.querySelectorAll('.cd-pal-item').forEach(b => b.classList.remove('is-on')); msg(HINT[tool]); draw(); }
+  function placeArmed() {
+    const k = armed.k;
+    if (OP[k]) {
+      const h = hostAt(cur.raw, 40);
+      if (!h) { msg('Doors and windows snap into walls. Drop it on one.'); return false; }
+      const o = { t: 'open', id: S.id++, k, wall: h.w.id, s: h.s, w: OP[k].w, side: h.side, hs: 1 };
+      S.objs.push(o); sel = new Set([o.id]);
+    } else {
+      const o = { t: 'sym', id: S.id++, k, x: cur.p[0], y: cur.p[1], rot: 0, w: SY[k].w, d: SY[k].d };
+      S.objs.push(o); sel = new Set([o.id]);
+    }
+    commit(); return true;
+  }
+  /* Rotate 90° / flip the selection about its own centre. Several objects turn as one group. */
+  function xform(op) {
+    const objs = [...sel].map(byId).filter(Boolean);
+    if (!objs.length) { msg('Select something first, then rotate or flip it.'); return; }
+    const body = objs.filter(o => o.t !== 'open');
+    if (!body.length) {                       // only doors / windows: change hinge or swing side
+      for (const o of objs) { if (op === 'fh') o.hs = -(o.hs || 1); else o.side = -(o.side || 1); }
+      commit(); return;
+    }
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    const ext = (x, y, r) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
+    for (const o of body) {
+      if (o.t === 'wall') { ext(o.a[0], o.a[1], 0); ext(o.b[0], o.b[1], 0); }
+      else if (o.t === 'room') { ext(o.x, o.y, 0); ext(o.x + o.w, o.y + o.h, 0); }
+      else ext(o.x, o.y, Math.max(o.w, o.d) / 2);
+    }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, mirror = op !== 'rot';
+    const M = p => (op === 'rot' ? [cx - (p[1] - cy), cy + (p[0] - cx)] : op === 'fh' ? [2 * cx - p[0], p[1]] : [p[0], 2 * cy - p[1]]).map(Math.round);
+    const walls = new Set();
+    for (const o of body) {
+      if (o.t === 'wall') { o.a = M(o.a); o.b = M(o.b); walls.add(o.id); }
+      else if (o.t === 'room') {
+        const p = M([o.x, o.y]), q = M([o.x + o.w, o.y + o.h]);
+        o.x = Math.min(p[0], q[0]); o.y = Math.min(p[1], q[1]); o.w = Math.abs(p[0] - q[0]); o.h = Math.abs(p[1] - q[1]);
+      } else {
+        [o.x, o.y] = M([o.x, o.y]);
+        const r = o.rot || 0;
+        if (op === 'rot') o.rot = (r + 90) % 360;
+        else { o.rot = (((op === 'fh' ? 0 : 180) - r) % 360 + 360) % 360; o.fl = !o.fl; }
+      }
+    }
+    if (mirror) for (const o of S.objs) if (o.t === 'open' && walls.has(o.wall)) o.side = -(o.side || 1);
+    commit();
+  }
+  function removeSel() {
+    if (!sel.size) return;
+    const ids = new Set(sel);
+    S.objs = S.objs.filter(o => !ids.has(o.id) && !(o.t === 'open' && ids.has(o.wall)));
+    sel.clear(); commit();
+  }
+  function fit() {
+    const b = bounds(), r = canvas.getBoundingClientRect();
+    if (r.width < 10) { needFit = true; return; }
+    needFit = false;
+    if (!b) { view = { z: 0.09, x: 40, y: 40 }; draw(); return; }
+    const pad = 56, z = Math.min(0.5, (r.width - pad * 2) / (b.x1 - b.x0), (r.height - pad * 2) / (b.y1 - b.y0));
+    view = { z, x: (r.width - (b.x1 - b.x0) * z) / 2 - b.x0 * z, y: (r.height - (b.y1 - b.y0) * z) / 2 - b.y0 * z };
+    draw();
+  }
+  function zoomAt(f, cx, cy) {
+    const z = Math.min(0.6, Math.max(0.02, view.z * f)), k = z / view.z;
+    view.x = cx - (cx - view.x) * k; view.y = cy - (cy - view.y) * k; view.z = z; draw();
+  }
+  /* ── sample drawings ── */
+  function build(title, fn) {
+    let n = 1;
+    const objs = [];
+    const W = (x1, y1, x2, y2, th) => { objs.push({ t: 'wall', id: n, a: [x1, y1], b: [x2, y2], th: th || 150 }); return n++; };
+    // a closed rectangle drawn clockwise: returns the ids of [top, right, bottom, left]
+    const box = (x, y, w, h, th) => [W(x, y, x + w, y, th), W(x + w, y, x + w, y + h, th), W(x + w, y + h, x, y + h, th), W(x, y + h, x, y, th)];
+    // dist = distance of the opening's centre from the wall's start point; side 1 / -1 picks the swing side
+    const op = (k, wid, dist, w, side, hs) => {
+      const wall = objs.find(o => o.id === wid);
+      objs.push({ t: 'open', id: n++, k, wall: wid, s: dist / wl(wall), w: w || OP[k].w, side: side || 1, hs: hs || 1 });
+    };
+    const sy = (k, x, y, rot, fl) => { const o = { t: 'sym', id: n++, k, x, y, rot: rot || 0, w: SY[k].w, d: SY[k].d }; if (fl) o.fl = true; objs.push(o); };
+    const rm = (x, y, w, h, name) => objs.push({ t: 'room', id: n++, x, y, w, h, name });
+    fn({ W, box, op, sy, rm });
+    S = { id: n, title, objs };
+    sel.clear();
+  }
+
+  const SAMPLES = {
+    studio: ['Sample studio unit', ({ W, box, op, sy, rm }) => {
+      const [top, right, bottom, left] = box(0, 0, 6000, 7000);
+      const hz = W(0, 3200, 6000, 3200, 100);
+      W(3600, 0, 3600, 3200, 100);
+      op('door', bottom, 4500, 1000, 1);
+      op('sdoor', bottom, 1700, 1800, 1);
+      op('door', hz, 2400, 900, -1);
+      op('door', hz, 4300, 800, -1);
+      op('window', top, 1800, 1500); op('window', top, 4800, 600);
+      op('window', left, 5200, 1200); op('window', left, 800, 1000);
+      op('window', right, 1600, 600); op('window', right, 5200, 1200);
+      [[0, 0], [6000, 0], [6000, 7000], [0, 7000]].forEach(p => sy('column', p[0], p[1]));
+      // bedroom
+      sy('bed', 1500, 1100); sy('nightstand', 500, 330); sy('nightstand', 2500, 330);
+      sy('wardrobe', 375, 1500, 90); sy('desk', 2925, 1500, 90); sy('plant', 3200, 2850);
+      // toilet & bath
+      sy('wc', 4300, 430); sy('lav', 5350, 290); sy('shower', 5475, 2675);
+      // living / kitchen
+      sy('fridge', 5575, 3625, 90); sy('stove', 5625, 4300, 90); sy('sink', 5625, 5200, 90); sy('washer', 5625, 6600);
+      sy('tv', 300, 4700, 270); sy('coffee', 1250, 4700, 90); sy('sofa', 2300, 4700, 90);
+      sy('armchair', 1300, 3750); sy('plant', 450, 3550); sy('ac', 3300, 3425);
+      sy('rtable', 3800, 5200); sy('plant', 4800, 6500);
+      rm(75, 75, 3450, 3050, 'Bedroom'); rm(3675, 75, 2250, 3050, 'T&B'); rm(75, 3275, 5850, 3650, 'Living / Kitchen');
+    }],
+
+    house: ['Sample two-bedroom house', ({ W, box, op, sy, rm }) => {
+      const [top, right, bottom, left] = box(0, 0, 10000, 8000);
+      const p1 = W(5400, 0, 5400, 8000, 100), p2 = W(6600, 0, 6600, 8000, 100);
+      W(6600, 3400, 10000, 3400, 100); W(6600, 5200, 10000, 5200, 100);
+      op('ddoor', bottom, 7300, 1500, 1);
+      op('window', bottom, 5600, 1200);
+      op('window', left, 1100, 1200); op('window', left, 6500, 1200);
+      op('window', top, 1800, 1500); op('window', top, 4000, 1800); op('window', top, 8300, 1800);
+      op('window', right, 1700, 1500); op('window', right, 4300, 600); op('window', right, 6600, 1500);
+      op('door', p1, 1800, 900, -1); op('door', p1, 6500, 900, -1);
+      op('door', p2, 2600, 900, -1); op('door', p2, 4500, 800, -1); op('door', p2, 6400, 900, -1);
+      [[0, 0], [10000, 0], [10000, 8000], [0, 8000], [5400, 0], [5400, 8000]].forEach(p => sy('column', p[0], p[1]));
+      // kitchen & dining
+      sy('fridge', 425, 425); sy('sink', 1800, 375); sy('stove', 2800, 375); sy('counter', 2000, 1700);
+      sy('rtable', 4200, 2400); sy('plant', 5050, 500);
+      // living
+      sy('tv', 300, 5400, 270); sy('coffee', 1600, 5400, 90); sy('sofa', 2800, 5400, 90);
+      sy('armchair', 1300, 4300); sy('armchair', 1300, 6500, 180); sy('plant', 500, 4300); sy('plant', 4900, 7500);
+      sy('ac', 5175, 4400, 90); sy('plant', 1500, 8350); sy('plant', 3900, 8350);
+      // master bedroom
+      sy('bed', 8300, 1050); sy('nightstand', 7300, 300); sy('nightstand', 9300, 300); sy('wardrobe', 9000, 3050, 180);
+      // bath
+      sy('tub', 9075, 3850); sy('wc', 8000, 4800, 180); sy('lav', 8900, 4940, 180); sy('washer', 7100, 3800);
+      // bedroom 2
+      sy('bedS', 8700, 6225); sy('nightstand', 9500, 5500); sy('desk', 7700, 7325, 180); sy('wardrobe', 9000, 7625, 180);
+      sy('plant', 5950, 7600);
+      rm(75, 75, 5250, 3650, 'Kitchen / Dining'); rm(75, 3875, 5250, 4050, 'Living'); rm(5475, 75, 1050, 7850, 'Hall');
+      rm(6675, 75, 3250, 3275, 'Master BR'); rm(6675, 3475, 3250, 1675, 'Bath'); rm(6675, 5275, 3250, 2650, 'Bedroom 2');
+    }],
+
+    office: ['Sample small office', ({ W, box, op, sy, rm }) => {
+      const [top, right, bottom, left] = box(0, 0, 12000, 8000);
+      const east = W(8000, 0, 8000, 8000, 100);
+      W(8000, 3200, 12000, 3200, 100); W(8000, 5400, 12000, 5400, 100); W(8000, 6700, 12000, 6700, 100);
+      const pantry = W(0, 2000, 3000, 2000, 100);
+      W(3000, 0, 3000, 2000, 100);
+      op('ddoor', bottom, 7500, 1500, 1);
+      op('window', bottom, 5100, 1800);
+      op('window', top, 1500, 1200); op('window', top, 4500, 1800); op('window', top, 6800, 1800);
+      op('window', right, 1600, 1800); op('window', right, 4300, 1500); op('window', right, 6050, 600); op('window', right, 7350, 600);
+      op('door', pantry, 1500, 900, -1);
+      op('ddoor', east, 1600, 1400, -1); op('door', east, 4300, 900, -1); op('door', east, 6050, 800, -1); op('door', east, 7350, 800, -1);
+      [[0, 0], [12000, 0], [12000, 8000], [0, 8000], [8000, 0], [8000, 8000]].forEach(p => sy('column', p[0], p[1]));
+      // pantry
+      sy('stove', 500, 400); sy('sink', 1500, 375); sy('fridge', 2550, 425);
+      // core & reception
+      sy('stairs', 900, 4700); sy('elev', 1100, 7000);
+      sy('counter', 5000, 6500); sy('sofa', 6900, 7475, 180); sy('coffee', 7100, 6700);
+      // open office: two rows of desks
+      [3300, 4900, 6500].forEach(x => { sy('desk', x, 3300); sy('desk', x, 5100, 180); });
+      sy('plant', 3400, 2750); sy('plant', 7500, 3350); sy('plant', 500, 7550); sy('ac', 7800, 2400, 90);
+      sy('rtable', 4500, 1100); sy('rtable', 6600, 1100);
+      // meeting room
+      sy('tv', 10000, 300); sy('rtable', 10000, 1700); sy('plant', 11600, 2900);
+      // manager
+      sy('desk', 10300, 4500); sy('wardrobe', 11300, 5050, 180); sy('plant', 8450, 5150);
+      // restrooms
+      [9300, 10300, 11300].forEach(x => { sy('wc', x, 5800); sy('wc', x, 7100); });
+      [9400, 10400].forEach(x => { sy('lav', x, 6440, 180); sy('lav', x, 7715, 180); });
+      rm(75, 75, 2875, 1875, 'Pantry'); rm(3075, 75, 4875, 1925, 'Collab area'); rm(75, 2075, 7875, 5850, 'Open office');
+      rm(8075, 75, 3850, 3075, 'Meeting'); rm(8075, 3275, 3850, 2075, 'Manager');
+      rm(8075, 5475, 3850, 1175, 'Men'); rm(8075, 6775, 3850, 1150, 'Women');
+    }],
+
+    footing: ['Sample footing plan', ({ W, sy, rm }) => {
+      const xs = [0, 5000, 10000, 15000], ys = [0, 4500, 9000];
+      ys.forEach(y => { for (let i = 0; i < 3; i++) W(xs[i], y, xs[i + 1], y, 250); });
+      xs.forEach(x => { for (let k = 0; k < 2; k++) W(x, ys[k], x, ys[k + 1], 250); });
+      xs.forEach(x => ys.forEach(y => sy('footing', x, y)));
+      sy('elev', 7500, 6750); sy('stairs', 12500, 6750);
+      [[0, 0], [1, 0], [2, 0], [0, 1]].forEach(([i, k]) => rm(xs[i] + 625, ys[k] + 625, 3750, 3250, 'Bay ' + 'ABC'[i] + (k + 1)));
+    }]
+  };
+  function sample(key) { const s = SAMPLES[key] || SAMPLES.studio; build(s[0], s[1]); }
+
+  /* ── pointer interaction on the sheet ── */
+  function setCursor(e) {
+    const r = svg.getBoundingClientRect();
+    cur.px = [e.clientX - r.left, e.clientY - r.top];
+    cur.raw = S2W(cur.px[0], cur.px[1]);
+    const s = snapPt(cur.raw);
+    cur.p = s.p; cur.snap = s.kind; cur.on = true;
+  }
+  svg.addEventListener('pointerdown', e => {
+    sheet.focus({ preventScroll: true });
+    setCursor(e);
+    svg.setPointerCapture(e.pointerId);
+    if (e.button === 2 || e.button === 1 || tool === 'pan' || space) { drag = { t: 'pan', rmb: e.button === 2, moved: false, x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; return; }
+    if (armed) { if (placeArmed() && !armed.sticky) disarm(); return; }
+    if (tool === 'wall') {
+      if (!chain) { chain = { a: cur.p.slice() }; drag = { t: 'wall', px: cur.px.slice() }; }
+      else { addWall(cur.p); drag = { t: 'wall', px: null }; }
+      draw(); return;
+    }
+    if (tool === 'room') { drag = { t: 'room', a: cur.p.slice(), b: cur.p.slice() }; return; }
+    const g = e.target.closest('[data-grip]');
+    if (g) { drag = { t: 'grip', id: +g.dataset.id, g: g.dataset.grip }; return; }
+    const h = e.target.closest('[data-id]'), multi = e.ctrlKey || e.metaKey || e.shiftKey;
+    if (h) {
+      const id = +h.dataset.id;
+      if (multi) {
+        if (sel.has(id)) { sel.delete(id); props(); draw(); return; }
+        sel.add(id);
+      } else if (!sel.has(id)) sel = new Set([id]);
+      drag = { t: 'move', start: cur.raw.slice(), orig: JSON.parse(JSON.stringify(S.objs.filter(o => sel.has(o.id)))), moved: false };
+    } else if (!multi) sel.clear();
+    props(); draw();
+  });
+  svg.addEventListener('pointermove', e => {
+    setCursor(e);
+    if (drag) {
+      if (drag.t === 'pan') { view.x = drag.vx + e.clientX - drag.x; view.y = drag.vy + e.clientY - drag.y; if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 4) drag.moved = true; }
+      else if (drag.t === 'room') drag.b = cur.p.slice();
+      else if (drag.t === 'grip') {
+        const o = byId(drag.id);
+        if (o.t === 'wall') o[drag.g] = cur.p.slice();
+        else if (o.t === 'room') {
+          const c = [[o.x, o.y], [o.x + o.w, o.y], [o.x + o.w, o.y + o.h], [o.x, o.y + o.h]], opp = c[(+drag.g + 2) % 4];
+          o.x = Math.min(opp[0], cur.p[0]); o.y = Math.min(opp[1], cur.p[1]);
+          o.w = Math.abs(opp[0] - cur.p[0]); o.h = Math.abs(opp[1] - cur.p[1]);
+        }
+        drag.moved = true;
+      } else if (drag.t === 'move') {
+        const dx = cur.raw[0] - drag.start[0], dy = cur.raw[1] - drag.start[1];
+        if (!drag.moved && Math.hypot(dx, dy) * view.z < 4) { draw(); return; }
+        drag.moved = true;
+        const sx = gridSnap ? Math.round(dx / 100) * 100 : dx, sy = gridSnap ? Math.round(dy / 100) * 100 : dy;
+        for (const orig of drag.orig) {
+          const o = byId(orig.id);
+          if (o.t === 'wall') { o.a = [orig.a[0] + sx, orig.a[1] + sy]; o.b = [orig.b[0] + sx, orig.b[1] + sy]; }
+          else if (o.t === 'open') { if (drag.orig.length === 1) { const h = hostAt(cur.raw, 48); if (h) { o.wall = h.w.id; o.s = h.s; o.side = h.side; } } }
+          else { o.x = orig.x + sx; o.y = orig.y + sy; }
+        }
+      }
+    }
+    draw();
+  });
+  svg.addEventListener('pointerup', e => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (d.t === 'pan') { if (d.rmb && !d.moved) { chain = null; if (armed) disarm(); } }
+    else if (d.t === 'wall' && d.px && Math.hypot(cur.px[0] - d.px[0], cur.px[1] - d.px[1]) > 10) { addWall(cur.p); chain = null; }
+    else if (d.t === 'room') {
+      const w = Math.abs(d.a[0] - d.b[0]), h = Math.abs(d.a[1] - d.b[1]);
+      if (w >= 500 && h >= 500) {
+        const o = { t: 'room', id: S.id++, x: Math.min(d.a[0], d.b[0]), y: Math.min(d.a[1], d.b[1]), w, h, name: 'Room ' + (S.objs.filter(q => q.t === 'room').length + 1) };
+        S.objs.push(o); sel = new Set([o.id]); commit();
+      }
+    } else if ((d.t === 'grip' || d.t === 'move') && d.moved) commit();
+    draw();
+  });
+  svg.addEventListener('pointercancel', () => { drag = null; draw(); });
+  svg.addEventListener('pointerleave', () => { cur.on = false; draw(); });
+  svg.addEventListener('dblclick', () => { chain = null; draw(); });
+  svg.addEventListener('contextmenu', e => e.preventDefault());
+  svg.addEventListener('wheel', e => {
+    if (document.activeElement !== sheet && !e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    zoomAt(Math.pow(1.0018, -e.deltaY), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  function addWall(p) {
+    if (!chain) return;
+    if (Math.hypot(p[0] - chain.a[0], p[1] - chain.a[1]) >= 50) {
+      S.objs.push({ t: 'wall', id: S.id++, a: chain.a.slice(), b: p.slice(), th: wallTh });
+      commit(); chain.a = p.slice();
+    }
+  }
+
+  /* ── palette: pointer-based drag and drop (mouse, pen and touch) ── */
+  const inCanvas = e => { const r = canvas.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; };
+  $('cd-pal').addEventListener('pointerdown', e => {
+    const b = e.target.closest('[data-k]');
+    if (!b) return;
+    dragP = { k: b.dataset.k, x: e.clientX, y: e.clientY, go: false };
+  });
+  window.addEventListener('pointermove', e => {
+    if (!dragP) return;
+    if (!dragP.go && Math.hypot(e.clientX - dragP.x, e.clientY - dragP.y) > 6) {
+      dragP.go = true; arm(dragP.k, false);
+      ghost.innerHTML = icon(dragP.k); ghost.hidden = false;
+    }
+    if (!dragP.go) return;
+    ghost.style.transform = `translate(${e.clientX + 14}px,${e.clientY + 14}px)`;
+    ghost.classList.toggle('is-over', inCanvas(e));
+    if (inCanvas(e)) setCursor(e); else cur.on = false;
+    draw();
+  });
+  const endPal = e => {
+    if (!dragP) return;
+    const d = dragP; dragP = null; ghost.hidden = true;
+    if (d.go) { if (e.type === 'pointerup' && inCanvas(e)) { setCursor(e); placeArmed(); } disarm(); }
+    else { setTool('select'); arm(d.k, true); }
+  };
+  window.addEventListener('pointerup', endPal);
+  window.addEventListener('pointercancel', endPal);
+
+  /* ── keyboard (only while the sheet has focus) ── */
+  sheet.addEventListener('keydown', e => {
+    if (e.target.matches('input[type="text"]')) return;
+    const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+    if (e.key === 'Shift') { shift = true; draw(); }
+    if (e.code === 'Space') { space = true; e.preventDefault(); }
+    else if (mod && k === 'z') { e.preventDefault(); jump(e.shiftKey ? 1 : -1); }
+    else if (mod && k === 'y') { e.preventDefault(); jump(1); }
+    else if (mod && k === 's') { e.preventDefault(); openSave(); }
+    else if (mod && k === 'a') { e.preventDefault(); sel = new Set(S.objs.map(o => o.id)); props(); draw(); }
+    else if (e.key === 'Escape') { if (!chain && !armed && tool === 'select' && wrap.classList.contains('is-fs') && !fsEl()) setFS(false); chain = null; drag = null; armed ? disarm() : (tool !== 'select' && setTool('select')); draw(); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeSel(); }
+    else if (e.key === 'Enter') { chain = null; draw(); }
+    else if (!mod && { v: 'select', w: 'wall', a: 'room', h: 'pan' }[k]) setTool({ v: 'select', w: 'wall', a: 'room', h: 'pan' }[k]);
+    else if (!mod && (k === 'r' || k === 'f')) xform(k === 'r' ? 'rot' : e.shiftKey ? 'fv' : 'fh');
+  });
+  sheet.addEventListener('keyup', e => { if (e.code === 'Space') space = false; if (e.key === 'Shift') { shift = false; draw(); } });
+
+  /* ── toolbar, toggles and export ── */
+  document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+  $('cd-undo').addEventListener('click', () => jump(-1));
+  $('cd-redo').addEventListener('click', () => jump(1));
+  $('cd-fit').addEventListener('click', fit);
+  [['cd-rot', 'rot'], ['cd-fh', 'fh'], ['cd-fv', 'fv']].forEach(([id, op]) => $(id).addEventListener('click', () => { xform(op); sheet.focus({ preventScroll: true }); }));
+  $('cd-zin').addEventListener('click', () => { const r = svg.getBoundingClientRect(); zoomAt(1.25, r.width / 2, r.height / 2); });
+  $('cd-zout').addEventListener('click', () => { const r = svg.getBoundingClientRect(); zoomAt(0.8, r.width / 2, r.height / 2); });
+  const flag = (id, get, set) => { const b = $(id); b.addEventListener('click', () => { set(!get()); b.classList.toggle('is-on', get()); b.setAttribute('aria-pressed', get()); draw(); }); };
+  flag('cd-ortho', () => ortho, v => { ortho = v; });
+  flag('cd-snap', () => gridSnap, v => { gridSnap = v; });
+  document.querySelectorAll('[data-wth]').forEach(b => b.addEventListener('click', () => {
+    wallTh = +b.dataset.wth;
+    document.querySelectorAll('[data-wth]').forEach(x => { const on = x === b; x.classList.toggle('is-on', on); x.setAttribute('aria-pressed', on); });
+  }));
+  $('cd-title').addEventListener('input', e => { S.title = e.target.value.slice(0, 40) || 'Untitled plan'; $('cd-dwg').textContent = 'DWG-A-BP01 · ' + S.title; });
+  $('cd-title').addEventListener('change', commit);
+  document.querySelectorAll('[data-sample]').forEach(b => b.addEventListener('click', () => {
+    sample(b.dataset.sample); $('cd-title').value = S.title; commit(); fit();
+    msg('Loaded “' + S.title + '”. Ctrl+Z brings your drawing back.');
+  }));
+  $('cd-clear').addEventListener('click', () => { if (!S.objs.length) return; S = { objs: [], id: 1, title: S.title }; sel.clear(); commit(); msg('Sheet cleared. Ctrl+Z brings it back.'); });
+  /* ── export: PNG, PDF (hand-built, no library) ── */
+  const fname = (ext, base) => (base || (S.title || 'blueprint').replace(/[^\w-]+/g, '-')) + '.' + ext;
+  function saveFile(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  function sheetCanvas(done) {
+    const b = bounds();
+    if (!b) { msg('Draw something first, then export.'); return; }
+    const pad = 900, mw = b.x1 - b.x0 + pad * 2, mh = b.y1 - b.y0 + pad * 2, z = Math.min(1500 / mw, 1000 / mh, 0.4);
+    const W = Math.round(mw * z), H = Math.round(mh * z) + 54, v = { z, x: (pad - b.x0) * z, y: (pad - b.y0) * z };
+    const cs = getComputedStyle(document.documentElement);
+    const css = CSS.replace(/var\(--([\w-]+)\)/g, (m, n) => cs.getPropertyValue('--' + n).trim() || m);
+    const bg = cs.getPropertyValue('--bg').trim(), ink = cs.getPropertyValue('--text').trim(), gold = cs.getPropertyValue('--gold').trim(), mut = cs.getPropertyValue('--muted').trim();
+    const mono = "'Space Mono',monospace";
+    const out = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><style>${css}</style>`
+      + `<rect width="${W}" height="${H}" fill="${bg}"/>${scene(v, true)}`
+      + `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" fill="none" stroke="${ink}" stroke-width="1.5"/><line x1="1" y1="${H - 54}" x2="${W - 1}" y2="${H - 54}" stroke="${ink}"/>`
+      + `<text x="16" y="${H - 28}" font-family="${mono}" font-size="14" fill="${gold}">DWG-A-BP01 · ${esc(S.title)}</text>`
+      + `<text x="16" y="${H - 11}" font-family="${mono}" font-size="10" fill="${mut}">ALL DIMENSIONS IN MILLIMETERS · ${new Date().toISOString().slice(0, 10)} · BLUEPRINT LAB</text></svg>`;
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2;
+      const g = c.getContext('2d'); g.scale(2, 2); g.drawImage(img, 0, 0);
+      done(c, W, H);
+    };
+    img.onerror = () => msg('Export failed in this browser.');
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(out);
+  }
+  function exportPNG(name) {
+    sheetCanvas(c => c.toBlob(bl => { saveFile(bl, fname('png', name)); msg('Exported PNG.'); }));
+  }
+  async function pdfBlob(c, W, H) {
+    // One page, sheet scaled to fit A3 (landscape or portrait). Lossless Flate image when
+    // CompressionStream exists, otherwise a high-quality JPEG.
+    const land = W >= H, PW = land ? 1191 : 842, PH = land ? 842 : 1191, M = 28;
+    const k = Math.min((PW - 2 * M) / W, (PH - 2 * M) / H), w = W * k, h = H * k, x = (PW - w) / 2, y = (PH - h) / 2;
+    let data, filter;
+    try {
+      const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, rgb = new Uint8Array(c.width * c.height * 3);
+      for (let i = 0, j = 0; i < px.length; i += 4) { rgb[j++] = px[i]; rgb[j++] = px[i + 1]; rgb[j++] = px[i + 2]; }
+      data = new Uint8Array(await new Response(new Blob([rgb]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+      filter = '/FlateDecode';
+    } catch (e) {
+      data = Uint8Array.from(atob(c.toDataURL('image/jpeg', 0.95).split(',')[1]), ch => ch.charCodeAt(0));
+      filter = '/DCTDecode';
+    }
+    const enc = new TextEncoder(), parts = [], offs = [];
+    let len = 0;
+    const push = u => { parts.push(u); len += u.length; };
+    const str = s => push(enc.encode(s));
+    const obj = (n, body) => { offs[n] = len; str(`${n} 0 obj\n${body}\nendobj\n`); };
+    const draw = `q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm /Im0 Do Q`;
+    str('%PDF-1.4\n');
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>`);
+    obj(4, `<< /Length ${draw.length} >>\nstream\n${draw}\nendstream`);
+    offs[5] = len;
+    str(`5 0 obj\n<< /Type /XObject /Subtype /Image /Width ${c.width} /Height ${c.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter ${filter} /Length ${data.length} >>\nstream\n`);
+    push(data);
+    str('\nendstream\nendobj\n');
+    const xref = len;
+    str('xref\n0 6\n0000000000 65535 f \n' + [1, 2, 3, 4, 5].map(n => String(offs[n]).padStart(10, '0') + ' 00000 n \n').join('')
+      + `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+  function exportPDF(name) {
+    sheetCanvas(async (c, W, H) => {
+      try { saveFile(await pdfBlob(c, W, H), fname('pdf', name)); msg('Saved PDF.'); }
+      catch (e) { msg('PDF export failed in this browser.'); }
+    });
+  }
+  $('cd-png').addEventListener('click', () => exportPNG());
+  $('cd-pdf').addEventListener('click', () => exportPDF());
+
+  /* ── Ctrl+S dialog ── */
+  const modal = $('cd-modal'), nameIn = $('cd-modal-fname');
+  let saveFmt = 'png';
+  const cleanName = s => String(s || '').replace(/[\\\/:*?"<>|\u0000-\u001f]+/g, '').replace(/\.(png|pdf)$/i, '').replace(/\s+/g, ' ').trim().replace(/^\.+|\.+$/g, '').slice(0, 60);
+  function setFmt(f) {
+    saveFmt = f;
+    modal.querySelectorAll('[data-save]').forEach(b => { const on = b.dataset.save === f; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on); });
+    $('cd-modal-ext').textContent = '.' + f;
+  }
+  function openSave() {
+    if (!bounds()) { msg('Draw something first, then save.'); return; }
+    nameIn.value = cleanName(S.title) || 'blueprint';
+    setFmt(saveFmt);
+    modal.hidden = false;
+    nameIn.focus(); nameIn.select();
+  }
+  function closeSave() { modal.hidden = true; sheet.focus({ preventScroll: true }); }
+  function doSave() {
+    const n = cleanName(nameIn.value) || cleanName(S.title) || 'blueprint', f = saveFmt;
+    closeSave(); f === 'pdf' ? exportPDF(n) : exportPNG(n);
+  }
+  modal.addEventListener('click', e => {
+    const b = e.target.closest('[data-save]');
+    if (b) setFmt(b.dataset.save);
+    else if (e.target.closest('#cd-modal-ok')) doSave();
+    else if (e.target === modal || e.target.closest('#cd-modal-x')) closeSave();
+  });
+  modal.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); closeSave(); }
+    else if (e.key === 'Enter' && e.target === nameIn) { e.preventDefault(); doSave(); }
+    else if (e.key === 'Tab') {
+      const f = Array.from(modal.querySelectorAll('input, button')), i = f.indexOf(document.activeElement);
+      e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+    }
+  });
+
+  /* ── full screen (falls back to filling the window where the API is missing) ── */
+  const wrap = document.querySelector('.cd-wrap'), fsBtn = $('cd-fs');
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function setFS(on) {
+    wrap.classList.toggle('is-fs', on);
+    fsBtn.classList.toggle('is-on', on);
+    fsBtn.setAttribute('aria-pressed', on);
+    fsBtn.textContent = on ? 'Exit full screen' : 'Full screen';
+    document.documentElement.classList.toggle('cd-fs-lock', on && !fsEl());
+    draw();
+  }
+  async function toggleFS() {
+    if (wrap.classList.contains('is-fs')) {
+      if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else setFS(false);
+      return;
+    }
+    const req = wrap.requestFullscreen || wrap.webkitRequestFullscreen;
+    if (req) { try { await req.call(wrap); return; } catch (e) { /* fall through */ } }
+    setFS(true);
+  }
+  fsBtn.addEventListener('click', toggleFS);
+  document.addEventListener('fullscreenchange', () => setFS(!!fsEl()));
+  document.addEventListener('webkitfullscreenchange', () => setFS(!!fsEl()));
+
+  /* ── resizable asset panel (drag the handle, arrow keys, double-click to reset) ── */
+  (function () {
+    const main = document.querySelector('.cd-main'), grip = $('cd-resizer');
+    if (!main || !grip) return;
+    const MIN = 96, MAX = 360, DEF = 112, PK = 'bplab:palw';
+    let w = DEF;
+    const limit = v => Math.round(Math.max(MIN, Math.min(Math.min(MAX, main.clientWidth - 260), v)));
+    function setW(v, keep) {
+      w = limit(v);
+      main.style.setProperty('--cd-pal-w', w + 'px');
+      grip.setAttribute('aria-valuenow', w);
+      if (!keep) { try { localStorage.setItem(PK, w); } catch (e) { /* storage unavailable */ } }
+    }
+    try { const s = +localStorage.getItem(PK); if (s) w = s; } catch (e) { /* ignore */ }
+    setW(w, true);
+    let d = null;
+    grip.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      d = { x: e.clientX, w };
+      grip.setPointerCapture(e.pointerId);
+      grip.classList.add('is-drag'); document.documentElement.classList.add('cd-resizing');
+      e.preventDefault();
+    });
+    grip.addEventListener('pointermove', e => { if (d) setW(d.w + e.clientX - d.x, true); });
+    const end = () => { if (!d) return; d = null; grip.classList.remove('is-drag'); document.documentElement.classList.remove('cd-resizing'); setW(w); };
+    grip.addEventListener('pointerup', end);
+    grip.addEventListener('pointercancel', end);
+    grip.addEventListener('dblclick', () => setW(DEF));
+    grip.addEventListener('keydown', e => {
+      const n = { ArrowLeft: w - 16, ArrowRight: w + 16, Home: MIN, End: MAX }[e.key];
+      if (n === undefined) return;
+      e.preventDefault(); e.stopPropagation(); setW(n);
+    });
+    window.addEventListener('resize', () => setW(w, true));
+  })();
+
+  if ('ResizeObserver' in window) new ResizeObserver(() => { needFit && canvas.clientWidth > 10 ? fit() : draw(); }).observe(canvas);
+
+  /* ── boot ── */
+  try { const raw = localStorage.getItem(KEY); if (raw) { const p = JSON.parse(raw); if (p && Array.isArray(p.objs) && p.objs.length) S = p; } } catch (e) { /* ignore */ }
+  if (!S.objs.length) sample('studio');
+  $('cd-title').value = S.title;
+  hist = [JSON.stringify(S)]; hi = 0;
+  setTool('select'); refresh();
+  requestAnimationFrame(fit);
+})();
+
+/* ══════════════════════════════════════════════════
+   SANDBOX TABS — switches between Beam Lab and
+   Blueprint Lab. Arrow keys / Home / End move between tabs.
+   ═══════════════════════════════════════ */
+(function () {
+  const tabs = Array.from(document.querySelectorAll('.sb-tab'));
+  if (!tabs.length) return;
+  function show(tab, focus) {
+    tabs.forEach(t => {
+      const on = t === tab;
+      t.classList.toggle('is-on', on);
+      t.setAttribute('aria-selected', on);
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    if (focus) tab.focus();
+    window.dispatchEvent(new Event('resize'));
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => show(t));
+    t.addEventListener('keydown', e => {
+      const n = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      if (n === undefined) return;
+      e.preventDefault();
+      show(tabs[(n + tabs.length) % tabs.length], true);
+    });
+  });
+})();
